@@ -4,6 +4,11 @@
 	"description": "Harness-agnostic, context-layer OS for multi-agent business execution. Own the context layer, rent the intelligence.",
 	"type": "module",
 	"license": "MIT",
+	"author": "Shaurya Kapoor",
+	"repository": {
+		"type": "git",
+		"url": "TODO-set-after-repo-creation"
+	},
 	"engines": {
 		"node": ">=24"
 	},

@@ -1,4 +1,29 @@
 node_modules/
 .env*
 *.log
+logs/
 .DS_Store
+
+# observability SQLite databases (obs.db default, plus journals)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# local scratch / tmp
+tmp/
+.tmp/
+scratch/
+.scratch/
+
+# local release-prep notes (audit evidence — never publish)
+tasks/
+
+# editor junk
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

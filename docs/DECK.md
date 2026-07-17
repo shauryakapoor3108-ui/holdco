@@ -2,8 +2,9 @@
 
 The deck UI (built externally against this contract, then ported in) consumes
 **one data source**: the holdco observability server (`holdco obs`). This
-document is the contract. The UX spec is frozen separately; changes to either
-go through a design dialogue, not drive-by edits.
+document is the contract — treat changes to it as data-contract changes
+(schema + fixtures in the same PR, see [ARCHITECTURE.md](ARCHITECTURE.md)),
+not drive-by edits.
 
 All fixtures and demo feeds are **synthetic** — never derived from real cards,
 sessions, or transcripts.
