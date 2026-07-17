@@ -7,7 +7,7 @@
 	"author": "Shaurya Kapoor",
 	"repository": {
 		"type": "git",
-		"url": "TODO-set-after-repo-creation"
+		"url": "git+https://github.com/shauryakapoor3108-ui/holdco.git"
 	},
 	"engines": {
 		"node": ">=24"

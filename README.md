@@ -1,14 +1,16 @@
 # holdco
 
-**A harness-agnostic engine for running real work through AI agents — where the durable asset is the context layer, not the model.**
+**Run coding agents as governed workers. Real git isolation, human-by-exception gates, a board that's just markdown files.**
 
-**Own the context layer, rent the intelligence.** Your board, your gates, your safety policy, your routing table, your telemetry — all plain files you govern. The model behind each worker is a config entry.
+holdco drives the coding-agent CLIs you already use — Claude Code, Codex, Pi — as workers on a plain-markdown kanban board. Every task runs in its own git worktree, a human approves only where it matters, and the engine can never skip a gate. Plain Node, zero dependencies.
 
-> Early public release. The engine, seams, and conformance suites below are implemented and tested; the deck UI is still in flight. Version numbers start at 0.
+> Early public release (v0). Extracted from a system I run daily to operate my own projects. The engine, seams, and conformance suites below are implemented and tested; the deck UI ships separately and is still in flight.
 
 ## Who this is for
 
-Engineers building multi-agent systems who refuse to marry a harness or a model vendor. If you want your orchestration, human gates, write-guards, cost routing, and telemetry to survive swapping Claude Code for Pi for Codex — and a frontier model for a workhorse — this is the layer you own. It's plain Node and plain markdown: no framework, no runtime dependencies, no lock-in.
+You already drive coding agents from the terminal and want a governance layer around them — not another framework to marry. holdco gives you git-worktree isolation so a worker can't touch your live tree, human gates you actually control (illegal moves auto-revert), cost-aware model routing, intake from email or Discord, and a board you can read with `ls`.
+
+It is **not** an in-memory agent framework. It orchestrates the CLIs you already run, on a real filesystem, with git as the substrate — and it doesn't lock you to a model or a vendor. If that's the wrong shape for you, [LangGraph](https://github.com/langchain-ai/langgraph), [CrewAI](https://github.com/crewAIInc/crewAI), and the vendor agent SDKs orchestrate at the API level instead.
 
 ## The thesis
 
