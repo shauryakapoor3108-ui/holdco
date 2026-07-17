@@ -32,6 +32,7 @@ import { readInstruction } from "./executor.ts";
 import { writeStatus } from "./frontmatter.ts";
 import { gitCheckEngineTouched, gitStageAndDiff } from "./git-ops.ts";
 import { upsertBodySection } from "./frontmatter.ts";
+import type { KnowledgeStore } from "../knowledge/store.ts";
 import type { Reconciler } from "./reconciler.ts";
 import type { WorkspaceManager } from "./workspace-manager.ts";
 
@@ -72,8 +73,13 @@ export interface WorkerPoolDeps {
 	scopedBase?: string;
 	/** Model requested from the adapter (routing lands here in a later milestone). */
 	model?: string;
-	/** Policy override; default = write-scoped to the worktree + scoped dir, DEFAULT_DENY_COMMANDS. */
+	/** Policy override; default = the knowledge store's permissions.json when a
+	 *  store is wired, else write-scoped to the worktree + scoped dir with
+	 *  DEFAULT_DENY_COMMANDS. */
 	policyFor?: (slot: WorkerSlot) => SafetyPolicy;
+	/** The unified knowledge layer: single-source constraints (rendered into every
+	 *  worker) + permissions (enforced natively) + the per-card message log. */
+	knowledge?: KnowledgeStore;
 }
 
 export class WorkerPool {
@@ -222,7 +228,13 @@ export class WorkerPool {
 
 	private policyFor(slot: WorkerSlot): SafetyPolicy {
 		if (this.d.policyFor) return this.d.policyFor(slot);
+		if (this.d.knowledge) return this.d.knowledge.policyFor({ worktree: slot.cwd, scopedDir: slot.scopedDir });
 		return { writeScopes: [slot.cwd, slot.scopedDir], denyCommands: [...DEFAULT_DENY_COMMANDS] };
+	}
+
+	/** Append to the card's shared message log (no-op without a knowledge store). */
+	private message(cardId: string, kind: "status" | "note" | "steer" | "outcome", text: string, refs?: Record<string, string>): void {
+		this.d.knowledge?.appendMessage(cardId, { author: "engine", kind, text, ...(refs ? { refs } : {}) });
 	}
 
 	// ── spawn (async; spawn is the ONE adapter verb allowed to throw) ──────────
@@ -236,11 +248,13 @@ export class WorkerPool {
 				runId: slot.runId,
 				model: this.d.model,
 				policy: this.policyFor(slot),
+				constraints: this.d.knowledge?.loadConstraints() || undefined,
 			});
 			slot.session = session;
 			slot.launching = false;
 			slot.lastActivityAt = this.now();
 			this.log("EXEC_WORKER_SPAWNED", { card: slot.cardId, harness: slot.harnessName, runId: slot.runId, promptRef: session.promptRef });
+			this.message(slot.cardId, "status", `worker spawned on ${slot.harnessName} (run ${slot.runId})`, { prompt: session.promptRef });
 		} catch (err) {
 			this.failLaunch(slot, `spawn failed (${slot.harnessName}): ${String(err)}`);
 		}
@@ -421,6 +435,12 @@ export class WorkerPool {
 			flags.length || engineTouched ? "warning" : "info",
 		);
 
+		this.message(slot.cardId, "outcome", outcome, {
+			...(artifacts.transcriptRef ? { transcript: artifacts.transcriptRef } : {}),
+			prompt: artifacts.promptRef,
+			...(diffPath ? { diff: diffPath } : {}),
+		});
+
 		// Free the slot + nudge the drain, then adapter teardown (transcript snapshot
 		// + process/pane close live in dispose).
 		this.slots.delete(slot.cardId);
@@ -439,6 +459,7 @@ export class WorkerPool {
 		});
 		this.d.reconciler.snapshot.set(slot.cardId, "Needs Review");
 		this.log("EXEC_BUDGET_EXCEEDED", { card: slot.cardId, cost_total: round6(cost), cap: this.d.cardBudgetUsd });
+		this.message(slot.cardId, "status", reason);
 		this.d.host.notify(`🛑 ${slot.cardId}: ${reason} — killed → Needs Review`, "warning");
 		this.slots.delete(slot.cardId);
 		this.d.host.events.emit("exec:idle", {});
@@ -454,6 +475,7 @@ export class WorkerPool {
 		});
 		this.d.reconciler.snapshot.set(slot.cardId, "Needs Review");
 		this.log("EXEC_ESCALATED", { card: slot.cardId, mechanism: "watchdog", errorClass: "terminal", reason });
+		this.message(slot.cardId, "status", `escalated (watchdog: ${reason})`);
 		this.d.host.notify(`🛑 watchdog: ${slot.cardId} → Needs Review (${reason})`, "warning");
 		this.slots.delete(slot.cardId);
 		this.d.host.events.emit("exec:idle", {});

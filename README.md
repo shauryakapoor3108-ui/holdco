@@ -38,6 +38,7 @@
 - **Worker pool** (`src/engine/worker-pool.ts`) — N-slot dispatch of execution-only workers into isolated worktrees, driven through the Harness seam; per-run budget kill, activity watchdog, circuit breaker, unified git-diff harvest written back to the card.
 - **Harness adapters** (`src/harness/`) — the `spawn / inject / poll / collect / dispose` contract (`types.ts`), a shipped conformance suite (`conformance.ts`), one policy evaluator enforced natively per harness (`policy.ts`): **Claude Code** (headless sessions, PreToolUse hook guard), **Pi** (herdr panes, tool-call guard extension), **Codex** (documented stub — pass conformance to finish it).
 - **Orchestrator** (`src/engine/orchestrate.ts`) — the daemon glue: workspace at intake, queue drain into free slots (human pull-backs always win), teardown at terminal states.
+- **Unified knowledge layer** (`src/knowledge/store.ts`) — ONE governed `knowledge/` dir per board: single-source `constraints.md` rendered natively into every worker on every harness (conformance-tested), single-source `permissions.json` enforced natively per harness (fail-safe: a broken config narrows authority, never widens it), and a per-card append-only message log — the substrate for v2 agent teams.
 - **Executor** (`src/engine/executor.ts`) — the single-slot inline dispatcher (the worker pool's REPL-hosted predecessor); usage accumulation, checkpoint heartbeats, outcome extraction.
 
 Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
@@ -48,6 +49,7 @@ Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
 - [x] Worker orchestration standalone — executor / worker pool / workspace manager run against `EngineHost`
 - [x] Harness adapter interface (`spawn / inject / poll / collect / dispose` + telemetry conformance)
 - [x] Pi adapter (port) + Claude Code adapter (new) + Codex conformance stub — live-proven E2E: `holdco serve` drains a human approval into an isolated worktree, a headless Claude Code worker executes it with the policy hook blocking `git commit` natively, diff + usage/cost harvested back to the card (`scripts/live-m2-daemon.sh`)
+- [x] Unified knowledge layer — one store for constraints / permissions / filing / per-card message logs, consumed by all harnesses (`scripts/live-m3-knowledge.sh`)
 - [ ] Task classifier + cost-aware model routing (chore → workhorse, plan/review → frontier)
 - [ ] Connector interface + Discord + IMAP reference implementations
 - [ ] Deck: attention rail, kanban, live flow map with per-node prompt/spend inspection

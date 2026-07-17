@@ -69,6 +69,7 @@ export async function runConformance(world: ConformanceWorld): Promise<Conforman
 
 	// ── happy path: spawn → working → complete → done → collect → dispose ──────
 	const ws = await world.makeWorkspace();
+	const CONSTRAINT_MARKER = "CONFORMANCE-CONSTRAINT-7f3a: file artifacts, never chat them.";
 	const req: SpawnRequest = {
 		workspace: ws,
 		instruction: "Conformance run: no real work — follow the completion contract when told.",
@@ -76,6 +77,7 @@ export async function runConformance(world: ConformanceWorld): Promise<Conforman
 		runId: `${ws.cardId}-conformance-${Math.random().toString(36).slice(2, 8)}`,
 		model: world.model,
 		policy: { writeScopes: [ws.dir, ws.scopedDir], denyCommands: [...DEFAULT_DENY_COMMANDS] },
+		constraints: CONSTRAINT_MARKER,
 	};
 
 	let session: HarnessSession | null = null;
@@ -91,6 +93,14 @@ export async function runConformance(world: ConformanceWorld): Promise<Conforman
 			"prompt-artifact",
 			!!session.promptRef && fs.existsSync(session.promptRef) && fs.readFileSync(session.promptRef, "utf8").includes(req.instruction),
 			session.promptRef,
+		);
+
+		// single-source constraints must be RENDERED into the worker's delivered
+		// context and durably referenced (knowledge-layer contract).
+		push(
+			"constraints-rendered",
+			!!session.constraintsRef && fs.existsSync(session.constraintsRef) && fs.readFileSync(session.constraintsRef, "utf8").includes(CONSTRAINT_MARKER),
+			String(session.constraintsRef),
 		);
 
 		const pre = await h.poll(session);

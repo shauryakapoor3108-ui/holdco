@@ -28,6 +28,7 @@ import { DEFAULT_SCOPED_BASE } from "./engine/workspace-paths.ts";
 import { ClaudeCodeHarness } from "./harness/claude-code.ts";
 import { CodexHarness } from "./harness/codex.ts";
 import type { Harness } from "./harness/types.ts";
+import { KnowledgeStore } from "./knowledge/store.ts";
 
 function parseArgs(argv: string[]): { cmd: string; pos: string[]; flags: Record<string, string> } {
 	const [cmd = "help", ...rest] = argv;
@@ -86,8 +87,13 @@ switch (cmd) {
 				"claude-code": new ClaudeCodeHarness({ claudeBin: host.config.get("claude-bin") || "claude" }),
 				codex: new CodexHarness(),
 			};
+			// The unified knowledge layer: scaffolded on first boot; constraints render
+			// into every worker, permissions.json is the enforced policy source.
+			const knowledge = new KnowledgeStore(cwd, host);
+			knowledge.ensure();
 			const wsMgr = new WorkspaceManager({ host, scopedBase });
 			const pool = new WorkerPool({
+				knowledge,
 				host,
 				reconciler: engine.reconciler!,
 				harnesses,

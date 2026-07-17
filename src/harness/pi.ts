@@ -149,6 +149,9 @@ export class PiHarness implements Harness {
 			cardId: ws.cardId,
 			runId: req.runId,
 			promptRef,
+			// Pi renders constraints as task.md context injection (buildWorkerTask
+			// embeds them), so the prompt artifact IS the rendered constraints ref.
+			constraintsRef: req.constraints ? promptRef : null,
 			startedAt: this.now(),
 			paneLabel,
 			paneId: pane,
@@ -401,6 +404,10 @@ function buildWorkerTask(req: SpawnRequest): string {
 	const { instruction } = req;
 	const { id, domain, cardType } = req.card;
 	const domainCtx = `domains/${domain}/CONTEXT.md`;
+	// Single-source constraints (knowledge layer), rendered as task context —
+	// Pi's native injection surface. Placed ahead of the instruction so they
+	// read as ground rules, not afterthoughts.
+	const constraintsBlock = req.constraints ? `## Constraints (holdco knowledge layer)\n${req.constraints}\n\n` : "";
 	const safetyRules =
 		`CRITICAL SAFETY RULES:\n` +
 		`- NEVER run git commit / git push / git commit --amend / git merge. Leave your edits UNCOMMITTED in the working tree — the owner captures your diff and applies it after approval. (push/commit/merge are also hard-blocked by the policy guard.)\n` +
@@ -423,6 +430,7 @@ function buildWorkerTask(req: SpawnRequest): string {
 			`Your cwd IS the worktree root — a clean checkout of the main repo at HEAD.\n` +
 			`Your edits inside this worktree will produce a git diff that IS your output.\n\n` +
 			safetyRules +
+			constraintsBlock +
 			`## Instruction\n${instruction}\n\n` +
 			`## Load context first (read-only)\n` +
 			`- Read \`${domainCtx}\` and the refs/ it points to, as the task needs.\n` +

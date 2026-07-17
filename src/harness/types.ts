@@ -61,6 +61,11 @@ export interface SpawnRequest {
 	/** Model id for the worker, when the harness supports selection. */
 	model?: string;
 	policy: SafetyPolicy;
+	/** Single-source constraints text (knowledge/constraints.md). The adapter MUST
+	 *  render it into the worker's delivered context natively (system injection,
+	 *  task preamble, …) and expose the rendered form via session.constraintsRef.
+	 *  Conformance-tested. */
+	constraints?: string;
 }
 
 /** Opaque per-run handle. Adapters may attach private state via subtyping;
@@ -71,6 +76,9 @@ export interface HarnessSession {
 	runId: string;
 	/** Absolute path of the prompt artifact the adapter wrote (task.md / prompt.md). */
 	promptRef: string;
+	/** Absolute path of the RENDERED constraints delivered to the worker (when
+	 *  the spawn request carried constraints). Null/absent when none were given. */
+	constraintsRef?: string | null;
 	startedAt: number;
 }
 

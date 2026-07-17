@@ -127,6 +127,15 @@ export class ClaudeCodeHarness implements Harness {
 		const promptRef = path.join(scoped, "prompt.md");
 		fs.writeFileSync(promptRef, promptText);
 
+		// Single-source constraints (knowledge layer): rendered NATIVELY as system
+		// prompt injection — never a file inside the worktree (it would pollute the
+		// harvested diff). The rendered form is durably referenced for conformance.
+		let constraintsRef: string | null = null;
+		if (req.constraints) {
+			constraintsRef = path.join(scoped, "constraints-rendered.md");
+			fs.writeFileSync(constraintsRef, `# Constraints (holdco knowledge layer)\n\n${req.constraints}\n`);
+		}
+
 		const policyPath = path.join(scoped, "policy.json");
 		fs.writeFileSync(policyPath, JSON.stringify(req.policy, null, "\t") + "\n");
 
@@ -177,6 +186,7 @@ export class ClaudeCodeHarness implements Harness {
 			settingsPath,
 		];
 		if (req.model) args.push("--model", req.model);
+		if (constraintsRef) args.push("--append-system-prompt", fs.readFileSync(constraintsRef, "utf8"));
 
 		const child = spawnChild(this.claudeBin, args, {
 			cwd: req.workspace.dir,
@@ -193,6 +203,7 @@ export class ClaudeCodeHarness implements Harness {
 			cardId: req.workspace.cardId,
 			runId: req.runId,
 			promptRef,
+			constraintsRef,
 			startedAt: Date.now(),
 			child,
 			jsonlPath,
