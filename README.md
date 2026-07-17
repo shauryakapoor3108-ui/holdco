@@ -79,7 +79,7 @@ Within a few seconds the daemon classifies the card (cheap model → workhorse t
 - **StageEvent telemetry + observability server** (`src/telemetry/`, `src/obs/`) — the engine emits deck telemetry at the harness boundary (gates, classify, worker, harvest — IDENTICAL sequences regardless of adapter; only the `harness` field differs, and a test enforces it). `holdco obs` ingests schema-validated events into SQLite and fans them out over SSE — the deck's data source.
 - **Executor** (`src/engine/executor.ts`) — the single-slot inline dispatcher (the worker pool's REPL-hosted predecessor); usage accumulation, checkpoint heartbeats, outcome extraction.
 
-Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
+Run the tests: `npm test` — no dependencies, plain Node ≥ 24.
 
 ## Roadmap to v1
 
