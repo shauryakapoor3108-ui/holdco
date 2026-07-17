@@ -1,0 +1,27 @@
+{
+	"name": "holdco",
+	"version": "0.0.1",
+	"description": "Harness-agnostic, context-layer OS for multi-agent business execution. Own the context layer, rent the intelligence.",
+	"type": "module",
+	"license": "MIT",
+	"engines": {
+		"node": ">=22.6"
+	},
+	"scripts": {
+		"test": "node tests/state-machine.test.ts && node tests/git-ops.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"keywords": [
+		"ai-agents",
+		"multi-agent",
+		"orchestration",
+		"claude",
+		"context-engineering",
+		"kanban",
+		"agentic"
+	],
+	"devDependencies": {
+		"@types/node": "^26.1.1",
+		"typescript": "5.6"
+	}
+}
