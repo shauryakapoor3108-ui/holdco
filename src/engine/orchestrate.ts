@@ -24,6 +24,7 @@ import type { Disposer } from "../host/host.ts";
 import type { KnowledgeStore } from "../knowledge/store.ts";
 import type { Classifier } from "../routing/classify.ts";
 import { routeFor, type RoutingTable } from "../routing/table.ts";
+import type { StageEvent, StageEventSink } from "../telemetry/stage-events.ts";
 import type { CardEngine } from "./core.ts";
 import { readInstruction } from "./executor.ts";
 import { parseCard, readRawField, writeStatus } from "./frontmatter.ts";
@@ -48,6 +49,10 @@ export interface OrchestratorDeps {
 	routing?: RoutingTable;
 	/** For message-log entries on classification decisions. */
 	knowledge?: KnowledgeStore;
+	/** Deck telemetry sink. ENGINE-LEVEL events (approval gate, classify) use the
+	 *  CARD id as run_id — the deck groups by card_id, so they join the per-spawn
+	 *  worker/harvest runs (which carry the pool's runId nonce) on that key. */
+	stageEvents?: StageEventSink;
 }
 
 export class Orchestrator {
@@ -60,12 +65,35 @@ export class Orchestrator {
 		this.d = deps;
 	}
 
+	private stage(ev: StageEvent): void {
+		this.d.stageEvents?.emit(ev);
+	}
+
+	private stageApprovalGate(id: string, status: "awaiting_human" | "passed"): void {
+		this.stage({
+			run_id: id,
+			card_id: id,
+			node_id: `${id}:approval-gate`,
+			node_type: "gate",
+			stage: "human-gate:approval",
+			harness: null,
+			status,
+			ts: new Date().toISOString(),
+		});
+	}
+
 	/** Wire the event subscriptions + arm the sweep tick. */
 	start(sweepMs = 2000): void {
 		const { host } = this.d;
 		this.disposers.push(
 			host.events.on("card:intake", (p: any) => {
 				if (p?.id && p?.file) void this.d.wsMgr.onIntake(p.id, p.file, this.d.cwd);
+			}),
+			// A card arriving at Needs Approval IS the approval gate opening — the
+			// engine has the landing event; the human move to Queued closes it (the
+			// drain emits "passed" when it consumes the approval).
+			host.events.on("card:needs-approval", (p: any) => {
+				if (p?.id) this.stageApprovalGate(p.id, "awaiting_human");
 			}),
 			host.events.on("card:queued", () => void this.drain()),
 			host.events.on("exec:idle", () => void this.drain()),
@@ -127,6 +155,16 @@ export class Orchestrator {
 				// so the write produces no reconcile delta. A human-pinned `model:`
 				// field always wins — routing never overrides it.
 				if (this.d.classifier && this.d.routing && !readRawField(scan.file, "class")) {
+					this.stage({
+						run_id: id,
+						card_id: id,
+						node_id: `${id}:classify`,
+						node_type: "agent",
+						stage: "classify",
+						harness: null,
+						status: "started",
+						ts: new Date().toISOString(),
+					});
 					const c = await this.d.classifier.classify({
 						id,
 						title: readRawField(scan.file, "title") ?? "",
@@ -135,6 +173,21 @@ export class Orchestrator {
 					});
 					const { tier, model } = routeFor(this.d.routing, c.class);
 					const pinned = readRawField(scan.file, "model");
+					// model = the classifier's own model (its `via`) when a model classified;
+					// the rules fallback has no model. The rationale stays in the log — the
+					// StageEvent schema has no field for it.
+					this.stage({
+						run_id: id,
+						card_id: id,
+						node_id: `${id}:classify`,
+						node_type: "agent",
+						stage: "classify",
+						harness: null,
+						...(c.via !== "rules" ? { model: c.via } : {}),
+						tier,
+						status: "passed",
+						ts: new Date().toISOString(),
+					});
 					writeStatus(scan.file, "Queued", {
 						annotations: { class: c.class, tier, classified_by: c.via, ...(pinned ? {} : { model }) },
 						logLine: `classified ${c.class} → ${tier}${pinned ? ` (model pinned: ${pinned})` : ` (${model})`} via ${c.via}: ${c.rationale}`,
@@ -162,6 +215,8 @@ export class Orchestrator {
 				// The engine edge: Queued → Executing, loop-suppressed, then dispatch.
 				writeStatus(scan.file, "Executing", { logLine: "drain: Queued → Executing (engine)" });
 				rec.snapshot.set(id, "Executing");
+				// The human approval was consumed (Queued → Executing) — gate passed.
+				this.stageApprovalGate(id, "passed");
 				this.d.host.events.emit("card:dequeued", { id, file: scan.file });
 				this.d.pool.dispatch(id, scan.file, { cwd: this.d.cwd });
 			}

@@ -8,6 +8,12 @@
 //       and (unless --no-exec) the execution orchestrator — approved cards are
 //       drained into isolated worktrees and executed by the configured harness
 //       (default: claude-code, headless `claude` sessions).
+//                [--obs-url URL] [--obs-token T]
+//       With --obs-url, StageEvent telemetry is ALSO POSTed to a running
+//       observability server (it always lands on the host log).
+//   holdco obs [--port N] [--db PATH] [--token T]
+//       Run the observability server: schema-validated StageEvent ingest into
+//       SQLite + SSE fan-out (the deck's data source).
 //   holdco board [--cards-dir DIR]
 //       One-shot column summary.
 //   holdco move <card-id> <status> [--cards-dir DIR]
@@ -15,6 +21,7 @@
 //       Intake, …). The write is validated by the running engine's reconciler:
 //       an illegal move is auto-reverted there, exactly like a kanban drag.
 
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import { basename, join } from "node:path";
 import { createStandaloneHost } from "./host/host.ts";
@@ -29,8 +36,10 @@ import { ClaudeCodeHarness } from "./harness/claude-code.ts";
 import { CodexHarness } from "./harness/codex.ts";
 import type { Harness } from "./harness/types.ts";
 import { KnowledgeStore } from "./knowledge/store.ts";
+import { startObsServer } from "./obs/server.ts";
 import { HeadlessModelClassifier, RuleClassifier } from "./routing/classify.ts";
 import { loadRoutingTable } from "./routing/table.ts";
+import { CompositeSink, HostLogSink, HttpSink, type StageEventSink } from "./telemetry/stage-events.ts";
 
 function parseArgs(argv: string[]): { cmd: string; pos: string[]; flags: Record<string, string> } {
 	const [cmd = "help", ...rest] = argv;
@@ -93,10 +102,17 @@ switch (cmd) {
 			// into every worker, permissions.json is the enforced policy source.
 			const knowledge = new KnowledgeStore(cwd, host);
 			knowledge.ensure();
+			// StageEvent telemetry: always the host log; with --obs-url ALSO POSTed to
+			// a running obs server (--obs-token for its auth wall).
+			const obsUrl = host.config.get("obs-url");
+			const stageEvents: StageEventSink = obsUrl
+				? new CompositeSink([new HostLogSink(host), new HttpSink({ url: obsUrl, token: host.config.get("obs-token") })])
+				: new HostLogSink(host);
 			const wsMgr = new WorkspaceManager({ host, scopedBase });
 			const pool = new WorkerPool({
 				knowledge,
 				host,
+				stageEvents,
 				reconciler: engine.reconciler!,
 				harnesses,
 				defaultHarness: host.config.get("worker-harness") || "claude-code",
@@ -119,7 +135,7 @@ switch (cmd) {
 						? new RuleClassifier()
 						: new HeadlessModelClassifier({ model: routing.classifier.model, claudeBin: host.config.get("claude-bin") || "claude" });
 
-			orchestrator = new Orchestrator({ host, engine, pool, wsMgr, cwd, classifier, routing, knowledge });
+			orchestrator = new Orchestrator({ host, engine, pool, wsMgr, cwd, classifier, routing, knowledge, stageEvents });
 			orchestrator.start(num("sweep-ms", 2000));
 			console.error(`holdco: executing via ${host.config.get("worker-harness") || "claude-code"} harness (--no-exec to disable)`);
 		}
@@ -134,6 +150,23 @@ switch (cmd) {
 		};
 		process.on("SIGINT", bye);
 		process.on("SIGTERM", bye);
+		break;
+	}
+	case "obs": {
+		// The observability server: StageEvent ingest + SSE fan-out. The boot
+		// banner (URL + token + db, printed by startObsServer) mirrors the source
+		// server's, minus the UI URL — the deck replaces that UI.
+		const dbFlag = flags.db || "obs.db";
+		const srv = await startObsServer({
+			port: flags.port ? Number(flags.port) : 43190,
+			host: flags.host || "127.0.0.1",
+			dbPath: dbFlag.startsWith("/") ? dbFlag : join(process.cwd(), dbFlag),
+			token: flags.token || randomUUID(),
+		});
+		console.error(`holdco obs: serving (ctrl-c to stop)`);
+		const obsBye = () => void srv.close().then(() => process.exit(0));
+		process.on("SIGINT", obsBye);
+		process.on("SIGTERM", obsBye);
 		break;
 	}
 	case "board": {
@@ -176,7 +209,8 @@ switch (cmd) {
 	default:
 		console.log(`holdco — harness-agnostic multi-agent engine
 
-  holdco serve [--cards-dir DIR] [--sweep-ms N] [--events-off]
+  holdco serve [--cards-dir DIR] [--sweep-ms N] [--events-off] [--obs-url URL] [--obs-token T]
+  holdco obs [--port N] [--db PATH] [--token T]
   holdco board [--cards-dir DIR]
   holdco move <card-id> <status> [--cards-dir DIR]
 `);

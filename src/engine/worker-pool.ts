@@ -33,6 +33,7 @@ import { writeStatus } from "./frontmatter.ts";
 import { gitCheckEngineTouched, gitStageAndDiff } from "./git-ops.ts";
 import { upsertBodySection } from "./frontmatter.ts";
 import type { KnowledgeStore } from "../knowledge/store.ts";
+import type { StageEvent, StageEventSink } from "../telemetry/stage-events.ts";
 import type { Reconciler } from "./reconciler.ts";
 import type { WorkspaceManager } from "./workspace-manager.ts";
 
@@ -50,6 +51,8 @@ export interface WorkerSlot {
 	/** Model for this run: the card's `model:` field (routing decision or human
 	 *  pin) over the pool default. Undefined → the harness's own default. */
 	model?: string;
+	/** Routed tier from the card's `tier:` frontmatter (written by triage), when present. */
+	tier?: "workhorse" | "frontier";
 	cwd: string; // the git worktree root (<scopedBase>/<id>/worktree)
 	runId: string; // per-spawn nonce → telemetry correlation tag
 	scopedDir: string; // <scopedBase>/<card-id> (metadata dir; worktree lives inside it)
@@ -83,6 +86,10 @@ export interface WorkerPoolDeps {
 	/** The unified knowledge layer: single-source constraints (rendered into every
 	 *  worker) + permissions (enforced natively) + the per-card message log. */
 	knowledge?: KnowledgeStore;
+	/** Deck telemetry sink. The pool emits IDENTICAL event sequences regardless of
+	 *  adapter (only the `harness` field names the transport) — that is the
+	 *  deck-parity guarantee. Absent → no emission. */
+	stageEvents?: StageEventSink;
 }
 
 export class WorkerPool {
@@ -202,6 +209,7 @@ export class WorkerPool {
 		}
 
 		// Reserve the slot SYNCHRONOUSLY (freeSlots decrements now), then spawn async.
+		const tierField = readField(file, "tier");
 		const slot: WorkerSlot = {
 			cardId,
 			file,
@@ -210,6 +218,7 @@ export class WorkerPool {
 			cardType,
 			harnessName: resolved.name,
 			model: readField(file, "model") || this.d.model,
+			tier: tierField === "workhorse" || tierField === "frontier" ? tierField : undefined,
 			cwd,
 			runId: `${cardId}-${this.now()}-${Math.random().toString(36).slice(2, 8)}`,
 			scopedDir: scopedDirFor({ scopedBase: this.scopedBase }, cardId),
@@ -241,6 +250,45 @@ export class WorkerPool {
 		this.d.knowledge?.appendMessage(cardId, { author: "engine", kind, text, ...(refs ? { refs } : {}) });
 	}
 
+	// ── StageEvent emission (fire-and-forget; sinks never throw by contract) ───
+	private stage(ev: StageEvent): void {
+		this.d.stageEvents?.emit(ev);
+	}
+
+	/** The run's worker node — deck-parity guarantee: the shape is IDENTICAL for
+	 *  every adapter; only `harness` names the transport. */
+	private stageWorker(slot: WorkerSlot, status: StageEvent["status"], extra: Partial<StageEvent> = {}): void {
+		this.stage({
+			run_id: slot.runId,
+			card_id: slot.cardId,
+			node_id: `${slot.runId}:worker`,
+			node_type: "agent",
+			stage: "worker",
+			harness: slot.harnessName,
+			...(slot.model !== undefined ? { model: slot.model } : {}),
+			...(slot.tier !== undefined ? { tier: slot.tier } : {}),
+			status,
+			ts: new Date().toISOString(),
+			...extra,
+		});
+	}
+
+	/** The run's review gate. The card lands at Needs Review, but core.ts has NO
+	 *  landing event for that column — so the pool emits the gate itself on every
+	 *  path that files the card there. */
+	private stageReviewGate(slot: WorkerSlot): void {
+		this.stage({
+			run_id: slot.runId,
+			card_id: slot.cardId,
+			node_id: `${slot.runId}:review-gate`,
+			node_type: "gate",
+			stage: "human-gate:review",
+			harness: null,
+			status: "awaiting_human",
+			ts: new Date().toISOString(),
+		});
+	}
+
 	// ── spawn (async; spawn is the ONE adapter verb allowed to throw) ──────────
 	private async launch(slot: WorkerSlot, harness: Harness, instruction: string): Promise<void> {
 		try {
@@ -258,6 +306,7 @@ export class WorkerPool {
 			slot.launching = false;
 			slot.lastActivityAt = this.now();
 			this.log("EXEC_WORKER_SPAWNED", { card: slot.cardId, harness: slot.harnessName, runId: slot.runId, promptRef: session.promptRef });
+			this.stageWorker(slot, "started", { prompt_ref: session.promptRef });
 			this.message(slot.cardId, "status", `worker spawned on ${slot.harnessName} (run ${slot.runId})`, { prompt: session.promptRef });
 		} catch (err) {
 			this.failLaunch(slot, `spawn failed (${slot.harnessName}): ${String(err)}`);
@@ -272,6 +321,9 @@ export class WorkerPool {
 			logLine: `worker launch failed: Executing → Needs Review (${reason})`,
 		});
 		this.d.reconciler.snapshot.set(slot.cardId, "Needs Review");
+		// No usage: a launch that never established a worker has no known cost.
+		this.stageWorker(slot, "failed");
+		this.stageReviewGate(slot);
 		this.log("EXEC_ESCALATED", { card: slot.cardId, mechanism: "launch-failure", errorClass: "terminal", reason });
 		this.d.host.notify(`🛑 ${slot.cardId}: worker launch failed → Needs Review`, "warning");
 		this.slots.delete(slot.cardId);
@@ -419,6 +471,32 @@ export class WorkerPool {
 				`${flags.length ? `, FLAGGED ${flags.join("/")}` : ""})`,
 		});
 		this.d.reconciler.snapshot.set(slot.cardId, "Needs Review");
+		// StageEvents: worker passed (+usage/refs) → deterministic harvest → review gate.
+		this.stageWorker(slot, "passed", {
+			...(diffPath ? { payload_ref: diffPath } : {}),
+			prompt_ref: artifacts.promptRef,
+			...(telemetryOk
+				? {
+						usage: {
+							tokens_in: Math.max(0, Math.round(artifacts.usage!.tokensIn)),
+							tokens_out: Math.max(0, Math.round(artifacts.usage!.tokensOut)),
+							cost_usd: Math.max(0, cost),
+						},
+					}
+				: {}),
+		});
+		this.stage({
+			run_id: slot.runId,
+			card_id: slot.cardId,
+			node_id: `${slot.runId}:harvest`,
+			node_type: "deterministic",
+			stage: "harvest",
+			harness: null,
+			status: diffPath ? "passed" : "failed",
+			...(diffPath ? { payload_ref: diffPath } : {}),
+			ts: new Date().toISOString(),
+		});
+		this.stageReviewGate(slot);
 		this.log("EXEC_COMPLETE", {
 			card: slot.cardId,
 			harness: slot.harnessName,
@@ -462,6 +540,13 @@ export class WorkerPool {
 			logLine: `BUDGET KILL: Executing → Needs Review (${reason})`,
 		});
 		this.d.reconciler.snapshot.set(slot.cardId, "Needs Review");
+		// The kill's cost IS known (it triggered the kill); tokens are not — the
+		// schema's usage trio is all-or-nothing, so tokens report 0.
+		this.stageWorker(slot, "failed", {
+			...(slot.session ? { prompt_ref: slot.session.promptRef } : {}),
+			usage: { tokens_in: 0, tokens_out: 0, cost_usd: Math.max(0, round6(cost)) },
+		});
+		this.stageReviewGate(slot);
 		this.log("EXEC_BUDGET_EXCEEDED", { card: slot.cardId, cost_total: round6(cost), cap: this.d.cardBudgetUsd });
 		this.message(slot.cardId, "status", reason);
 		this.d.host.notify(`🛑 ${slot.cardId}: ${reason} — killed → Needs Review`, "warning");
@@ -478,6 +563,9 @@ export class WorkerPool {
 			logLine: `watchdog: Executing → Needs Review (${reason})`,
 		});
 		this.d.reconciler.snapshot.set(slot.cardId, "Needs Review");
+		// No usage: cost at escalation time is unknown (poll may never have reported one).
+		this.stageWorker(slot, "failed", slot.session ? { prompt_ref: slot.session.promptRef } : {});
+		this.stageReviewGate(slot);
 		this.log("EXEC_ESCALATED", { card: slot.cardId, mechanism: "watchdog", errorClass: "terminal", reason });
 		this.message(slot.cardId, "status", `escalated (watchdog: ${reason})`);
 		this.d.host.notify(`🛑 watchdog: ${slot.cardId} → Needs Review (${reason})`, "warning");
