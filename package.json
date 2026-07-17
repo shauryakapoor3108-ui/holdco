@@ -8,7 +8,7 @@
 		"node": ">=22.6"
 	},
 	"scripts": {
-		"test": "node tests/state-machine.test.ts && node tests/git-ops.test.ts",
+		"test": "node tests/state-machine.test.ts && node tests/core.test.ts && node tests/git-ops.test.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
@@ -23,5 +23,8 @@
 	"devDependencies": {
 		"@types/node": "^26.1.1",
 		"typescript": "5.6"
+	},
+	"bin": {
+		"holdco": "./src/cli.ts"
 	}
 }

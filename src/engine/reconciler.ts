@@ -41,7 +41,11 @@ export class Reconciler {
 	private readonly MAX_REVERTS = 5;
 	private readonly REVERT_WINDOW_MS = 10_000;
 
-	constructor(private cardsDir: string) {}
+	private readonly cardsDir: string;
+
+	constructor(cardsDir: string) {
+		this.cardsDir = cardsDir;
+	}
 
 	/** Reset revert tracking for a card (e.g. after the edge dissipates — test helper). */
 	resetRevertState(id: string): void {
