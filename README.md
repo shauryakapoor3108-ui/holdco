@@ -34,12 +34,16 @@
 - **Git ops** (`src/engine/git-ops.ts`) — worker isolation via git worktrees; merge-back diffs against creation base (not HEAD) so committed and uncommitted worker output both land.
 - **Owner lease** (`src/engine/owner-lease.ts`) — single-owner guard; two engines can't fight over one board.
 - **Goal DAG** (`src/engine/goal-dag.ts`) — cards with `depends_on` rest in a holding column until their dependency graph files; cycles rejected at admission.
+- **Workspace manager** (`src/engine/workspace-manager.ts`) — per-card scoped dir + git worktree at intake, capped concurrency with a deferred-intake queue, idempotent crash-resume, startup reaper.
+- **Worker pool** (`src/engine/worker-pool.ts`) — N-slot dispatch of execution-only workers into isolated worktrees; completion sentinels, per-run budget kill, watchdog escalation, circuit breaker, unified git-diff harvest written back to the card.
+- **Executor** (`src/engine/executor.ts`) — the single-slot inline dispatcher (the worker pool's REPL-hosted predecessor); usage accumulation, checkpoint heartbeats, outcome extraction.
 
 Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
 
 ## Roadmap to v1
 
-- [ ] `EngineHost` shim — engine runs standalone (daemon CLI), Pi becomes one shell of two
+- [x] `EngineHost` shim — engine runs standalone (daemon CLI), Pi becomes one shell of two
+- [x] Worker orchestration standalone — executor / worker pool / workspace manager run against `EngineHost`; live-proven with a real Claude Code worker in an isolated worktree (`scripts/live-m1-claude-worker.ts`)
 - [ ] Harness adapter interface (`spawn / inject / poll / collect / dispose` + telemetry conformance)
 - [ ] Pi adapter (port) + Claude Code adapter (new) + Codex conformance stub
 - [ ] Task classifier + cost-aware model routing (chore → workhorse, plan/review → frontier)

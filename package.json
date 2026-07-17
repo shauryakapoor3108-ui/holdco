@@ -8,7 +8,7 @@
 		"node": ">=22.6"
 	},
 	"scripts": {
-		"test": "node tests/state-machine.test.ts && node tests/core.test.ts && node tests/git-ops.test.ts",
+		"test": "node tests/state-machine.test.ts && node tests/core.test.ts && node tests/git-ops.test.ts && node tests/executor.test.ts && node tests/workspace-manager.test.ts && node tests/worker-pool.test.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
