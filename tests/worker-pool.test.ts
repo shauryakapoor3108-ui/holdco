@@ -1,12 +1,15 @@
-// worker-pool.test.ts — drives the WorkerPool DIRECTLY (dispatch + sweep, no index.ts
-// orchestration) under a fake EngineHost, a COCKPIT-aware fake herdr, and a fake obs
-// client. Worker completion is simulated the selftest way: the worker's labelled pane
-// output is set via setLabelOutput (the pool re-resolves pane ids by STABLE label each
-// tick) and the sweep detects the concrete sentinel.
+// worker-pool.test.ts — drives the WorkerPool DIRECTLY (dispatch + sweep, no
+// orchestrator) through the Harness seam under a controllable FakeHarness and a
+// fake EngineHost. The old herdr/obs-driven transport mechanics moved into the
+// adapters and are covered by tests/harness-pi.test.ts + tests/harness-claude-code.test.ts —
+// they are NOT re-tested here. This suite proves the harness-NEUTRAL machinery:
+// slot accounting, circuit breaker, budget kill, activity watchdog, the unified
+// git-diff harvest, board-state writes, adapter selection + teardown.
 // Run via `node tests/worker-pool.test.ts`.
 //
-// Every block that must exercise the finalize diff harvest uses a REAL git repo +
-// a REAL git worktree (gitWorktreeAdd) — the harvest runs real `git add -A` +
+// Every block that exercises the finalize diff harvest uses a REAL git repo +
+// a REAL git worktree (gitWorktreeAdd) registered on a REAL WorkspaceManager in
+// worktree-only mode (no herdr) — the harvest runs real `git add -A` +
 // `git diff --staged <base>` against the worktree's creation base.
 
 import { execSync, type ExecSyncOptions } from "node:child_process";
@@ -16,11 +19,16 @@ import { join } from "node:path";
 
 import type { EngineHost } from "../src/host/host.ts";
 import { gitWorktreeAdd } from "../src/engine/git-ops.ts";
-import type { HerdrAdapter } from "../src/engine/herdr-adapter.ts";
-import type { ObsClient } from "../src/engine/obs-client.ts";
 import { Reconciler } from "../src/engine/reconciler.ts";
-import { WorkerPool, workerLabel, type WorkerPoolDeps } from "../src/engine/worker-pool.ts";
+import { WorkerPool, type WorkerPoolDeps } from "../src/engine/worker-pool.ts";
 import { WorkspaceManager } from "../src/engine/workspace-manager.ts";
+import type {
+	Harness,
+	HarnessArtifacts,
+	HarnessSession,
+	PollResult,
+	SpawnRequest,
+} from "../src/harness/types.ts";
 
 // ── Test harness ─────────────────────────────────────────────────────────────
 
@@ -38,7 +46,7 @@ function ok(cond: boolean, msg: string): void {
 
 const GIT: ExecSyncOptions = { encoding: "utf8", stdio: "pipe", timeout: 15_000 };
 
-/** Per-block hermetic environment: a REAL git repo (root = the board/vault dir, holds
+/** Per-block hermetic environment: a REAL git repo (root = the board dir, holds
  *  cards/) + a scopedBase, all under one mkdtemp dir. */
 function setup(): { root: string; cardsDir: string; scopedBase: string; cleanup: () => void } {
 	const tmp = fs.mkdtempSync(join(tmpdir(), "wp-test-"));
@@ -81,135 +89,86 @@ function mkCard(cardsDir: string, id: string, opts: { cardType?: string; brief?:
 const status = (file: string) => fs.readFileSync(file, "utf8").match(/^status:\s*(.*)$/m)![1].trim();
 const fm = (file: string) => fs.readFileSync(file, "utf8");
 
-// ── Fakes (the selftest IdxFakeHerdr / IdxFakeObs patterns, host-notify adapted) ──
+// ── FakeHarness (the controllable Harness seam double) ──────────────────────
+// spawn records the SpawnRequest + writes prompt.md into the scopedDir; the test
+// controls per-card poll state / cost / activity and the artifacts collect()
+// returns. spawn can be made to throw (the ONE verb allowed to).
 
-interface FPane { id: string; label?: string; tabId: string; wsId: string; state: string }
-/** COCKPIT-aware fake herdr: ONE cockpit workspace whose owner pane is the root; workers are
- *  labelled splits (worker:<id>). Worker output is addressed by the STABLE label — the pool
- *  re-resolves the pane id each tick — so tests use setLabelOutput(workerLabel(id)). */
-class FakeHerdr {
-	closed: string[] = []; // WORKSPACE closes (the pool no longer does these; wsMgr still can)
-	paneCloses: string[] = []; // PANE closes (the cockpit teardown path)
-	runCmds: { pane: string; cmd: string }[] = [];
-	paneOutputs = new Map<string, string>();
-	labelOutputs = new Map<string, string>();
-	failSplit = false; // paneSplit returns null (cockpit placement failure)
-	emptyList = false; // paneList returns [] (transient herdr read failure)
-	waitOutputResult = true; // claude-driver `herdr wait output` outcome
-	waitOutputCalls: { pane: string; match: string; timeoutMs: number }[] = [];
-	private pseq = 0;
-	private wseq = 0;
-	private wsLabels = new Map<string, string>();
-	private panes: FPane[] = [];
-	async workspaceCreate(label: string) {
-		const wsId = `ws${++this.wseq}`;
-		this.wsLabels.set(wsId, label);
-		const id = `p${++this.pseq}`;
-		this.panes.push({ id, tabId: `${wsId}:1`, wsId, state: "unknown" });
-		return { ok: true, workspaceId: wsId, paneId: id };
+class FakeHarness implements Harness {
+	readonly name: string;
+	readonly spawned: SpawnRequest[] = [];
+	readonly disposed: HarnessSession[] = [];
+	failSpawn = false;
+	private readonly states = new Map<string, PollResult>();
+	private readonly artifactOverrides = new Map<string, Partial<HarnessArtifacts>>();
+
+	constructor(name = "fake") {
+		this.name = name;
 	}
-	async workspaceList() {
-		return [...this.wsLabels].map(([workspace_id, label]) => ({ workspace_id, label }));
+
+	async spawn(req: SpawnRequest): Promise<HarnessSession> {
+		if (this.failSpawn) throw new Error("fake harness refused to spawn");
+		this.spawned.push(req);
+		const promptRef = join(req.workspace.scopedDir, "prompt.md");
+		fs.writeFileSync(promptRef, `# worker prompt for ${req.card.id} (run ${req.runId})\n\n${req.instruction}\n`, "utf8");
+		return { harness: this.name, cardId: req.workspace.cardId, runId: req.runId, promptRef, startedAt: Date.now() };
 	}
-	async workspaceClose(id: string) {
-		this.closed.push(id);
-		this.wsLabels.delete(id);
-		this.panes = this.panes.filter((p) => p.wsId !== id);
+
+	async inject(): Promise<boolean> {
 		return true;
 	}
-	async paneList(workspaceId?: string) {
-		if (this.emptyList) return [];
-		return this.panes
-			.filter((p) => !workspaceId || p.wsId === workspaceId)
-			.map((p) => ({ pane_id: p.id, agent_status: p.state, label: p.label, tab_id: p.tabId, workspace_id: p.wsId }));
+
+	async poll(session: HarnessSession): Promise<PollResult> {
+		return this.states.get(session.cardId) ?? { state: "working" };
 	}
-	async tabList(workspaceId?: string) {
-		const tabs = new Map<string, { label: string; count: number }>();
-		for (const p of this.panes) {
-			if (workspaceId && p.wsId !== workspaceId) continue;
-			const t = tabs.get(p.tabId) ?? { label: p.tabId.endsWith(":1") ? "1" : "bench", count: 0 };
-			t.count++;
-			tabs.set(p.tabId, t);
-		}
-		return [...tabs].map(([tab_id, v]) => ({ tab_id, label: v.label, pane_count: v.count }));
+
+	async collect(session: HarnessSession): Promise<HarnessArtifacts> {
+		const over = this.artifactOverrides.get(session.cardId) ?? {};
+		return {
+			outcome: "did the work",
+			outputTail: "boot\nwork\nOUTCOME: did the work\n",
+			usage: { tokensIn: 400, tokensOut: 56, costUsd: 0.0123 },
+			transcriptRef: null,
+			promptRef: session.promptRef,
+			errorCount: 0,
+			...over,
+		};
 	}
-	async paneSplit(paneId: string, _direction: "right" | "down", _cwd?: string) {
-		if (this.failSplit) return null;
-		const anchor = this.panes.find((p) => p.id === paneId);
-		if (!anchor) return null;
-		const id = `p${++this.pseq}`;
-		this.panes.push({ id, tabId: anchor.tabId, wsId: anchor.wsId, state: "unknown" });
-		return id;
+
+	async dispose(session: HarnessSession): Promise<void> {
+		this.disposed.push(session);
 	}
-	async tabCreate(workspaceId: string, _label: string, _cwd?: string) {
-		const id = `p${++this.pseq}`;
-		this.panes.push({ id, tabId: `${workspaceId}:bench`, wsId: workspaceId, state: "unknown" });
-		return { tabId: `${workspaceId}:bench`, paneId: id };
+
+	// ── test control surface ──
+	setWorking(id: string): void {
+		this.states.set(id, { ...this.states.get(id), state: "working" });
 	}
-	async paneRename(paneId: string, label: string) {
-		const p = this.panes.find((x) => x.id === paneId);
-		if (p) p.label = label;
-		return true;
+	setDone(id: string): void {
+		this.states.set(id, { ...this.states.get(id), state: "done" });
 	}
-	async paneReportAgent(paneId: string, _s: string, _a: string, state: string) {
-		const p = this.panes.find((x) => x.id === paneId);
-		if (p) p.state = state;
-		return true;
+	setFailed(id: string): void {
+		this.states.set(id, { ...this.states.get(id), state: "failed" });
 	}
-	async paneClose(paneId: string) {
-		this.paneCloses.push(paneId);
-		this.panes = this.panes.filter((p) => p.id !== paneId);
-		return true;
+	setUnknown(id: string): void {
+		this.states.set(id, { ...this.states.get(id), state: "unknown" });
 	}
-	async paneRun(pane: string, cmd: string) {
-		this.runCmds.push({ pane, cmd });
-		return true;
+	setCost(id: string, costUsd: number): void {
+		const cur = this.states.get(id) ?? { state: "working" as const };
+		this.states.set(id, { ...cur, costUsd });
 	}
-	async paneSendText() {
-		return true;
+	setLastActivity(id: string, ts: number): void {
+		const cur = this.states.get(id) ?? { state: "working" as const };
+		this.states.set(id, { ...cur, lastActivityAt: ts });
 	}
-	async paneSendKeys() {
-		return true;
+	setArtifacts(id: string, over: Partial<HarnessArtifacts>): void {
+		this.artifactOverrides.set(id, over);
 	}
-	async paneRead(pane: string) {
-		const p = this.panes.find((x) => x.id === pane);
-		if (p?.label && this.labelOutputs.has(p.label)) return this.labelOutputs.get(p.label)!;
-		return this.paneOutputs.get(pane) ?? "";
-	}
-	async paneAgentStatus() {
-		return "idle";
-	}
-	async waitOutput(pane: string, match: string, timeoutMs: number) {
-		this.waitOutputCalls.push({ pane, match, timeoutMs });
-		return this.waitOutputResult;
-	}
-	// ── test helpers ──
-	setLabelOutput(label: string, text: string) {
-		this.labelOutputs.set(label, text);
-	}
-	workerPane(cardId: string): string | undefined {
-		return this.panes.find((p) => p.label === `worker:${cardId}`)?.id;
-	}
-	removePane(label: string) {
-		this.panes = this.panes.filter((p) => p.label !== label);
+	disposedFor(id: string): boolean {
+		return this.disposed.some((s) => s.cardId === id);
 	}
 }
 
-class FakeObs {
-	defaultSession: string | null = "sess";
-	stats = new Map<string, { ok: boolean; stats: any }>();
-	async resolveSessionIdByTag() {
-		return this.defaultSession;
-	}
-	async getStats(sid: string) {
-		return this.stats.get(sid) ?? { ok: false, stats: null };
-	}
-	async health() {
-		return true;
-	}
-}
-
-/** Captured fake host: pool notifications land here (no Pi ctx.ui anymore). */
+/** Captured fake host: pool notifications + events + log lines land here. */
 function fakeHost() {
 	const logged: any[] = [];
 	const emitted: { event: string; payload: any }[] = [];
@@ -238,8 +197,7 @@ function fakeHost() {
 
 interface PoolRig {
 	pool: WorkerPool;
-	herdr: FakeHerdr;
-	obs: FakeObs;
+	fake: FakeHarness;
 	reconciler: Reconciler;
 	host: EngineHost;
 	logged: any[];
@@ -248,37 +206,33 @@ interface PoolRig {
 	wsMgr?: WorkspaceManager;
 }
 
-function makePool(cardsDir: string, scopedBase: string, opts: Partial<WorkerPoolDeps> & { withWsMgr?: boolean; hostBits?: ReturnType<typeof fakeHost> } = {}): PoolRig {
-	const { host, logged, emitted, notices } = opts.hostBits ?? fakeHost();
-	const herdr = new FakeHerdr();
-	const obs = new FakeObs();
+function makePool(
+	cardsDir: string,
+	scopedBase: string,
+	opts: Partial<WorkerPoolDeps> & { withWsMgr?: boolean; fake?: FakeHarness } = {},
+): PoolRig {
+	const { host, logged, emitted, notices } = fakeHost();
+	const fake = opts.fake ?? new FakeHarness("fake");
 	const reconciler = new Reconciler(cardsDir);
-	const wsMgr = opts.withWsMgr ? new WorkspaceManager({ host, herdr: herdr as unknown as HerdrAdapter, scopedBase }) : undefined;
+	// worktree-only mode: NO herdr dep — the git worktree is the isolation primitive.
+	const wsMgr = opts.withWsMgr ? new WorkspaceManager({ host, scopedBase }) : undefined;
 	const deps: WorkerPoolDeps = {
 		host,
 		reconciler,
-		herdr: herdr as unknown as HerdrAdapter,
-		obs: obs as unknown as ObsClient,
-		obsToken: "test-token",
-		obsServerUrl: "http://127.0.0.1:0",
+		harnesses: opts.harnesses ?? { [fake.name]: fake },
+		defaultHarness: opts.defaultHarness ?? fake.name,
 		maxSlots: opts.maxSlots ?? 2,
 		cardBudgetUsd: opts.cardBudgetUsd ?? 1.0,
 		watchdogMs: opts.watchdogMs ?? 600_000,
 		wsMgr,
-		now: opts.now ?? (() => Date.now()),
-		sleep: () => Promise.resolve(),
+		now: opts.now,
 		scopedBase,
-		slug: "t",
 	};
-	return { pool: new WorkerPool(deps), herdr, obs, reconciler, host, logged, emitted, notices, wsMgr };
+	return { pool: new WorkerPool(deps), fake, reconciler, host, logged, emitted, notices, wsMgr };
 }
 
-/** Fresh obs stats blob (fresh latest_ts so the watchdog stays quiet). */
-function freshStats(cost: number, tokens: number, now = Date.now()) {
-	return { ok: true, stats: { total_cost: cost, total_tokens: tokens, error_count: 0, latest_ts: new Date(now).toISOString() } };
-}
-
-/** Inject a lifecycle worktree handle (a REAL git worktree) into wsMgr for a card. */
+/** Inject a lifecycle worktree handle (a REAL git worktree) into wsMgr for a card —
+ *  worktree-only mode, so workspaceId is null. */
 function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: string): { worktree: string; baseCommit: string } {
 	const scopedDir = join(scopedBase, id);
 	const worktree = join(scopedDir, "worktree");
@@ -286,7 +240,7 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 	const baseCommit = gitWorktreeAdd(root, "HEAD", worktree);
 	rig.wsMgr!.lifecycleWorkspaces.set(id, {
 		cardId: id,
-		workspaceId: `ws-${id}`,
+		workspaceId: null,
 		paneId: null,
 		scopedDir,
 		worktreePath: worktree,
@@ -297,61 +251,65 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// a. dispatch: synchronous slot reservation, launch command, task.md contract
+// a. dispatch: synchronous slot reservation + EXEC_DISPATCH + the SpawnRequest
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── a. dispatch reserves slot synchronously + launch command + task.md");
+	console.log("── a. dispatch reserves slot synchronously + correct SpawnRequest through the seam");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
-	const rig = makePool(cardsDir, scopedBase);
+	const rig = makePool(cardsDir, scopedBase, { withWsMgr: true });
 	const file = mkCard(cardsDir, "alpha");
 	rig.reconciler.snapshot.set("alpha", "Executing");
+	const { worktree } = injectWorktree(rig, root, scopedBase, "alpha");
 
 	rig.pool.dispatch("alpha", file, { cwd: root });
 	ok(rig.pool.freeSlots() === 1, "slot reserved SYNCHRONOUSLY (freeSlots 2 → 1 before settleLaunches)");
-	ok(rig.logged.some((e) => e.event === "EXEC_DISPATCH" && e.card === "alpha"), "EXEC_DISPATCH logged");
+	ok(rig.logged.some((e) => e.event === "EXEC_DISPATCH" && e.card === "alpha" && e.harness === "fake"), "EXEC_DISPATCH logged with the harness name");
 	await rig.pool.settleLaunches();
 
-	const cmd = rig.herdr.runCmds[0]?.cmd ?? "";
-	ok(cmd.includes("pi --no-extensions"), "launch command spawns an execution-only Pi worker (pi --no-extensions)");
-	ok(cmd.includes("HOLDCO_CARD_DIR="), "launch command exports HOLDCO_CARD_DIR (worker-guard scope)");
-	ok(cmd.includes("run:"), "launch command carries the per-spawn run: correlation tag");
-
-	const task = fs.readFileSync(join(scopedBase, "alpha", "task.md"), "utf8");
-	ok(task.includes("<<CARD-DONE:CARDID>>>"), "task.md describes the sentinel with the CARDID placeholder");
-	ok(!task.includes("<<CARD-DONE:alpha>>>"), "task.md NEVER contains the concrete sentinel (echo false-positive defeated)");
+	ok(rig.fake.spawned.length === 1, "adapter spawn called exactly once");
+	const req = rig.fake.spawned[0];
+	ok(req.card.id === "alpha" && req.workspace.cardId === "alpha", "SpawnRequest carries the card id");
+	ok(req.workspace.dir === worktree, "SpawnRequest workspace.dir IS the lifecycle worktree");
+	ok(req.workspace.scopedDir === join(scopedBase, "alpha"), "SpawnRequest carries the scoped dir");
+	ok(req.instruction.includes("do the thing for alpha"), "SpawnRequest instruction carries the brief");
+	ok(typeof req.runId === "string" && req.runId.startsWith("alpha-"), "SpawnRequest carries the per-spawn runId nonce");
+	ok(req.policy.writeScopes.includes(worktree) && req.policy.writeScopes.includes(join(scopedBase, "alpha")), "policy writeScopes = worktree + scoped dir");
+	ok(req.policy.denyCommands.length > 0, "policy denyCommands is non-empty (default deny list)");
+	ok(fs.existsSync(join(scopedBase, "alpha", "prompt.md")), "adapter wrote prompt.md into the scoped dir");
 	cleanup();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// b. sentinel completion → finalize: real worktree diff harvest, board write, teardown
+// b. done → finalize: real worktree diff harvest, board write, teardown
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── b. sentinel completion → finalize (real git worktree diff harvest)");
+	console.log("── b. done → finalize (real git worktree diff harvest)");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
 	const rig = makePool(cardsDir, scopedBase, { withWsMgr: true });
 	const file = mkCard(cardsDir, "bravo");
 	rig.reconciler.snapshot.set("bravo", "Executing");
 	const { worktree } = injectWorktree(rig, root, scopedBase, "bravo");
-	rig.obs.stats.set("sess", freshStats(0.0123, 456));
 
 	rig.pool.dispatch("bravo", file, { cwd: root });
 	await rig.pool.settleLaunches();
-	// The worker writes a REAL file into its worktree, then emits the sentinel.
+	// The worker's "work": a REAL file into its worktree, then the adapter reports done.
 	fs.writeFileSync(join(worktree, "knowledge", "analysis.md"), "# Analysis\nfindings\n");
-	rig.herdr.setLabelOutput(workerLabel("bravo"), `boot\nwork\nOUTCOME: did the analysis\n<<CARD-DONE:bravo>>>`);
+	rig.fake.setDone("bravo");
 	await rig.pool.sweep();
 
 	ok(status(file) === "Needs Review", "card → Needs Review after harvest");
 	const text = fm(file);
-	ok(text.includes("cost_total: 0.0123") && text.includes("tokens: 456"), "cost/tokens from fake obs written to frontmatter");
+	ok(text.includes("cost_total: 0.0123") && text.includes("tokens: 456"), "cost/tokens from artifacts.usage written to frontmatter");
+	ok(/^harness: fake$/m.test(text), "harness name annotated on the card");
 	ok(text.includes("diff_status: changed (1 file(s))"), "diff_status: changed");
 	ok(text.includes("## Diff") && text.includes("diff --git"), "card body carries a ## Diff section with the real diff");
 	ok(!text.includes("no change produced"), "outcome NOT flagged no-change (a real diff was produced)");
+	ok(!text.includes("review_flag"), "no review_flag (OUTCOME line present, zero errors)");
 	const diffPath = join(scopedBase, "bravo", "card.diff");
 	ok(fs.existsSync(diffPath) && fs.readFileSync(diffPath, "utf8").includes("analysis.md"), "card.diff written to the scoped dir");
 	ok(rig.pool.freeSlots() === 2, "slot freed after finalize");
 	ok(rig.emitted.some((e) => e.event === "exec:idle"), "exec:idle emitted (drain nudge)");
-	ok(rig.herdr.paneCloses.length > 0, "worker pane closed (cockpit teardown)");
+	ok(rig.fake.disposedFor("bravo"), "adapter dispose called after finalize");
 	const events = rig.reconciler.reconcile("sweep");
 	ok(!events.some((e) => e.event === "ILLEGAL_REVERT"), "snapshot synced — next reconcile sees no delta / no ILLEGAL_REVERT");
 	cleanup();
@@ -367,12 +325,11 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 	const file = mkCard(cardsDir, "charlie");
 	rig.reconciler.snapshot.set("charlie", "Executing");
 	injectWorktree(rig, root, scopedBase, "charlie");
-	rig.obs.stats.set("sess", freshStats(0.01, 10));
 
 	rig.pool.dispatch("charlie", file, { cwd: root });
 	await rig.pool.settleLaunches();
 	// The worker completes WITHOUT touching its worktree.
-	rig.herdr.setLabelOutput(workerLabel("charlie"), `OUTCOME: nothing to do\n<<CARD-DONE:charlie>>>`);
+	rig.fake.setDone("charlie");
 	await rig.pool.sweep();
 
 	ok(status(file) === "Needs Review", "clean card → Needs Review");
@@ -384,179 +341,180 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// d. no-brief card → straight to Needs Review, no spawn
+// d. telemetry unavailable: artifacts.usage null → flagged, never fabricated
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── d. no-brief card → Needs Review without spawning");
+	console.log("── d. telemetry unavailable (usage null) → cost unknown + telemetry flag");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
-	const rig = makePool(cardsDir, scopedBase);
-	const file = mkCard(cardsDir, "delta", { brief: false });
+	const rig = makePool(cardsDir, scopedBase, { withWsMgr: true });
+	const file = mkCard(cardsDir, "delta");
 	rig.reconciler.snapshot.set("delta", "Executing");
+	const { worktree } = injectWorktree(rig, root, scopedBase, "delta");
 
 	rig.pool.dispatch("delta", file, { cwd: root });
 	await rig.pool.settleLaunches();
-	ok(status(file) === "Needs Review", "no-brief card → Needs Review");
-	ok(fm(file).includes("no brief — nothing to execute"), "outcome explains the no-brief skip");
-	ok(rig.herdr.runCmds.length === 0, "no worker spawned");
-	ok(rig.pool.freeSlots() === 2, "no slot consumed");
-	ok(rig.logged.some((e) => e.event === "EXEC_NO_BRIEF" && e.card === "delta"), "EXEC_NO_BRIEF logged");
+	fs.writeFileSync(join(worktree, "knowledge", "note.md"), "# note\n");
+	rig.fake.setArtifacts("delta", { usage: null });
+	rig.fake.setDone("delta");
+	await rig.pool.sweep();
+
+	ok(status(file) === "Needs Review", "telemetry-less card still finalizes to Needs Review");
+	const text = fm(file);
+	ok(text.includes('cost_total: "unknown (telemetry unavailable)"'), 'cost_total: "unknown (telemetry unavailable)"');
+	ok(/^telemetry: unavailable$/m.test(text), "telemetry: unavailable annotation written");
+	ok(text.includes("diff_status: changed (1 file(s))"), "diff harvest still runs without telemetry");
 	cleanup();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// e. circuit breaker: 4th dispatch halts; clearDispatchCount resets
+// e. no-brief card → straight to Needs Review, no spawn
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── e. circuit breaker on the 4th dispatch; clearDispatchCount resets");
+	console.log("── e. no-brief card → Needs Review without spawning");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
 	const rig = makePool(cardsDir, scopedBase);
-	const file = mkCard(cardsDir, "echo", { brief: false }); // no-brief: each dispatch is a clean non-spawning pass
+	const file = mkCard(cardsDir, "echo", { brief: false });
 	rig.reconciler.snapshot.set("echo", "Executing");
 
-	for (let i = 0; i < 3; i++) rig.pool.dispatch("echo", file, { cwd: root });
-	ok(!rig.logged.some((e) => e.event === "EXEC_CIRCUIT_BREAKER"), "first 3 dispatches pass the breaker");
 	rig.pool.dispatch("echo", file, { cwd: root });
-	ok(rig.logged.some((e) => e.event === "EXEC_CIRCUIT_BREAKER" && e.card === "echo"), "4th dispatch trips EXEC_CIRCUIT_BREAKER");
+	await rig.pool.settleLaunches();
+	ok(status(file) === "Needs Review", "no-brief card → Needs Review");
+	ok(fm(file).includes("no brief — nothing to execute"), "outcome explains the no-brief skip");
+	ok(rig.fake.spawned.length === 0, "no worker spawned");
+	ok(rig.pool.freeSlots() === 2, "no slot consumed");
+	ok(rig.logged.some((e) => e.event === "EXEC_NO_BRIEF" && e.card === "echo"), "EXEC_NO_BRIEF logged");
+	cleanup();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// f. circuit breaker: 4th dispatch halts; clearDispatchCount resets
+// ══════════════════════════════════════════════════════════════════════════════
+{
+	console.log("── f. circuit breaker on the 4th dispatch; clearDispatchCount resets");
+	const { root, cardsDir, scopedBase, cleanup } = setup();
+	const rig = makePool(cardsDir, scopedBase);
+	const file = mkCard(cardsDir, "foxtrot", { brief: false }); // no-brief: each dispatch is a clean non-spawning pass
+	rig.reconciler.snapshot.set("foxtrot", "Executing");
+
+	for (let i = 0; i < 3; i++) rig.pool.dispatch("foxtrot", file, { cwd: root });
+	ok(!rig.logged.some((e) => e.event === "EXEC_CIRCUIT_BREAKER"), "first 3 dispatches pass the breaker");
+	rig.pool.dispatch("foxtrot", file, { cwd: root });
+	ok(rig.logged.some((e) => e.event === "EXEC_CIRCUIT_BREAKER" && e.card === "foxtrot"), "4th dispatch trips EXEC_CIRCUIT_BREAKER");
 	const text = fm(file);
 	ok(/^halt: true$/m.test(text), "breaker writes halt: true");
 	ok(status(file) === "Needs Review", "breaker halts the card at Needs Review");
 
-	rig.pool.clearDispatchCount("echo");
+	rig.pool.clearDispatchCount("foxtrot");
 	const before = rig.logged.filter((e) => e.event === "EXEC_CIRCUIT_BREAKER").length;
-	rig.pool.dispatch("echo", file, { cwd: root });
+	rig.pool.dispatch("foxtrot", file, { cwd: root });
 	ok(rig.logged.filter((e) => e.event === "EXEC_CIRCUIT_BREAKER").length === before, "clearDispatchCount resets the breaker (next dispatch passes)");
 	cleanup();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// f. isolation breach (HARDENING 1): wsMgr present, no lifecycle worktree
+// g. isolation breach (HARDENING 1): wsMgr present, no lifecycle worktree
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── f. isolation breach: wsMgr present but no lifecycle worktree → quarantined");
+	console.log("── g. isolation breach: wsMgr present but no lifecycle worktree → quarantined");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
 	const rig = makePool(cardsDir, scopedBase, { withWsMgr: true }); // wsMgr present, NO handle injected
-	const file = mkCard(cardsDir, "foxtrot");
-	rig.reconciler.snapshot.set("foxtrot", "Executing");
-
-	rig.pool.dispatch("foxtrot", file, { cwd: root });
-	await rig.pool.settleLaunches();
-	ok(status(file) === "Needs Review", "breach card quarantined to Needs Review");
-	ok(fm(file).includes('review_flag: "isolation-breach"'), "review_flag: isolation-breach written");
-	ok(rig.herdr.runCmds.length === 0, "no worker spawned on a breach");
-	ok(rig.pool.freeSlots() === 2, "no slot consumed on a breach");
-	ok(rig.logged.some((e) => e.event === "EXEC_ISOLATION_BREACH" && e.card === "foxtrot"), "EXEC_ISOLATION_BREACH logged");
-	cleanup();
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// g. budget kill: obs cost above cardBudgetUsd mid-run
-// ══════════════════════════════════════════════════════════════════════════════
-{
-	console.log("── g. budget kill: over-budget worker is killed → Needs Review");
-	const { root, cardsDir, scopedBase, cleanup } = setup();
-	const rig = makePool(cardsDir, scopedBase, { cardBudgetUsd: 1.0 });
 	const file = mkCard(cardsDir, "golf");
 	rig.reconciler.snapshot.set("golf", "Executing");
 
 	rig.pool.dispatch("golf", file, { cwd: root });
 	await rig.pool.settleLaunches();
-	rig.obs.stats.set("sess", freshStats(5.25, 1000)); // way over the $1 cap
-	const panesBefore = rig.herdr.paneCloses.length;
+	ok(status(file) === "Needs Review", "breach card quarantined to Needs Review");
+	ok(fm(file).includes('review_flag: "isolation-breach"'), "review_flag: isolation-breach written");
+	ok(rig.fake.spawned.length === 0, "no worker spawned on a breach");
+	ok(rig.pool.freeSlots() === 2, "no slot consumed on a breach");
+	ok(rig.logged.some((e) => e.event === "EXEC_ISOLATION_BREACH" && e.card === "golf"), "EXEC_ISOLATION_BREACH logged");
+	cleanup();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// h. unknown `worker:` harness name → loud escalation, no spawn
+// ══════════════════════════════════════════════════════════════════════════════
+{
+	console.log("── h. unknown `worker:` harness name → Needs Review, review_flag no-harness");
+	const { root, cardsDir, scopedBase, cleanup } = setup();
+	const rig = makePool(cardsDir, scopedBase);
+	const file = mkCard(cardsDir, "hotel", { worker: "nosuch" });
+	rig.reconciler.snapshot.set("hotel", "Executing");
+
+	rig.pool.dispatch("hotel", file, { cwd: root });
+	await rig.pool.settleLaunches();
+	ok(status(file) === "Needs Review", "unknown-harness card → Needs Review (no stall in Executing)");
+	const text = fm(file);
+	ok(text.includes('review_flag: "no-harness"'), "review_flag: no-harness written");
+	ok(text.includes('unknown harness \\"nosuch\\"') || text.includes("nosuch"), "outcome names the unregistered harness");
+	ok(rig.fake.spawned.length === 0, "no worker spawned");
+	ok(rig.pool.freeSlots() === 2, "no slot consumed");
+	ok(rig.logged.some((e) => e.event === "EXEC_NO_HARNESS" && e.card === "hotel"), "EXEC_NO_HARNESS logged");
+	cleanup();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// i. budget kill: poll costUsd above cardBudgetUsd mid-run
+// ══════════════════════════════════════════════════════════════════════════════
+{
+	console.log("── i. budget kill: over-budget worker is killed → Needs Review");
+	const { root, cardsDir, scopedBase, cleanup } = setup();
+	const rig = makePool(cardsDir, scopedBase, { cardBudgetUsd: 1.0 });
+	const file = mkCard(cardsDir, "india");
+	rig.reconciler.snapshot.set("india", "Executing");
+
+	rig.pool.dispatch("india", file, { cwd: root });
+	await rig.pool.settleLaunches();
+	rig.fake.setCost("india", 5.25); // way over the $1 cap
 	await rig.pool.sweep();
 
 	ok(status(file) === "Needs Review", "over-budget card → Needs Review");
 	const text = fm(file);
 	ok(text.includes('review_flag: "budget"'), "review_flag: budget written");
 	ok(text.includes("budget exceeded"), "outcome carries the budget-kill reason");
-	ok(rig.herdr.paneCloses.length > panesBefore, "over-budget worker pane closed");
+	ok(text.includes("cost_total: 5.25"), "the observed cost is written to the card");
+	ok(rig.fake.disposedFor("india"), "over-budget worker session disposed");
 	ok(rig.pool.freeSlots() === 2, "slot freed after the kill");
-	ok(rig.logged.some((e) => e.event === "EXEC_BUDGET_EXCEEDED" && e.card === "golf"), "EXEC_BUDGET_EXCEEDED logged");
+	ok(rig.logged.some((e) => e.event === "EXEC_BUDGET_EXCEEDED" && e.card === "india"), "EXEC_BUDGET_EXCEEDED logged");
 	cleanup();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// h. watchdog: stale obs latest_ts → escalated
+// j. watchdog: poll "unknown" + stale activity (injectable now) → escalated
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── h. watchdog: stale obs latest_ts → escalated");
+	console.log("── j. watchdog: unknown poll + stale lastActivity → escalated");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
-	const fixedNow = Date.now();
-	const rig = makePool(cardsDir, scopedBase, { watchdogMs: 10_000, now: () => fixedNow });
-	const file = mkCard(cardsDir, "hotel");
-	rig.reconciler.snapshot.set("hotel", "Executing");
+	let clock = 1_000_000;
+	const rig = makePool(cardsDir, scopedBase, { watchdogMs: 10_000, now: () => clock });
+	const file = mkCard(cardsDir, "juliet");
+	rig.reconciler.snapshot.set("juliet", "Executing");
 
-	rig.pool.dispatch("hotel", file, { cwd: root });
+	rig.pool.dispatch("juliet", file, { cwd: root });
 	await rig.pool.settleLaunches();
-	// Cheap but STALE telemetry: last activity 60s ago against a 10s watchdog.
-	rig.obs.stats.set("sess", freshStats(0.01, 10, fixedNow - 60_000));
-	await rig.pool.sweep();
 
-	ok(status(file) === "Needs Review", "stale-obs card escalated to Needs Review");
+	// "unknown" is a transport hiccup, not a verdict: with FRESH activity nothing happens.
+	rig.fake.setUnknown("juliet");
+	await rig.pool.sweep();
+	ok(status(file) === "Executing" && rig.pool.hasSlot("juliet"), "unknown poll with fresh activity does NOT escalate");
+
+	// Now the activity goes stale (the watchdog backstop): advance the injectable clock.
+	clock += 60_000; // 60s of silence against a 10s watchdog
+	await rig.pool.sweep();
+	ok(status(file) === "Needs Review", "stale-activity card escalated to Needs Review");
 	const text = fm(file);
 	ok(text.includes('review_flag: "watchdog"'), "review_flag: watchdog written");
-	ok(text.includes("obs latest_ts stale"), "outcome carries the stale-obs reason");
+	ok(text.includes("no worker activity"), "outcome carries the no-activity reason");
+	ok(rig.fake.disposedFor("juliet"), "watchdogged worker session disposed");
 	ok(rig.pool.freeSlots() === 2, "slot freed after escalation");
 	cleanup();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// i. dead-pane watchdog: gone from a NON-EMPTY list escalates; an EMPTY list does not
+// k. poll "failed" → terminal escalation
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── i. dead-pane watchdog: non-empty-list omission escalates; empty list is transient");
-	const { root, cardsDir, scopedBase, cleanup } = setup();
-	const rig = makePool(cardsDir, scopedBase);
-	rig.obs.defaultSession = null; // no obs session → budget/stale-obs phases stay quiet
-	const file = mkCard(cardsDir, "india");
-	rig.reconciler.snapshot.set("india", "Executing");
-
-	rig.pool.dispatch("india", file, { cwd: root });
-	await rig.pool.settleLaunches();
-
-	// Transient herdr read failure: paneList returns [] → must NOT escalate.
-	rig.herdr.emptyList = true;
-	await rig.pool.sweep();
-	ok(status(file) === "Executing", "EMPTY pane list (transient herdr failure) does NOT escalate");
-	ok(rig.pool.hasSlot("india"), "slot survives the transient empty read");
-	rig.herdr.emptyList = false;
-
-	// Genuine omission: the worker's pane vanished from a NON-EMPTY list (owner pane remains).
-	rig.herdr.removePane(workerLabel("india"));
-	await rig.pool.sweep();
-	ok(status(file) === "Needs Review", "pane gone from a NON-EMPTY list → escalated to Needs Review");
-	const text = fm(file);
-	ok(text.includes('review_flag: "watchdog"') && text.includes("worker pane gone from cockpit"), "watchdog flag + dead-pane reason written");
-	ok(!rig.pool.hasSlot("india"), "slot freed after the dead-pane escalation");
-	cleanup();
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// j. failLaunch: cockpit placement failure
-// ══════════════════════════════════════════════════════════════════════════════
-{
-	console.log("── j. failLaunch: cockpit placement failure → Needs Review, slot freed");
-	const { root, cardsDir, scopedBase, cleanup } = setup();
-	const rig = makePool(cardsDir, scopedBase);
-	rig.herdr.failSplit = true; // paneSplit → null → place() fails
-	const file = mkCard(cardsDir, "juliet");
-	rig.reconciler.snapshot.set("juliet", "Executing");
-
-	rig.pool.dispatch("juliet", file, { cwd: root });
-	ok(rig.pool.freeSlots() === 1, "slot reserved before the launch failure surfaces");
-	await rig.pool.settleLaunches();
-	ok(status(file) === "Needs Review", "failed launch → Needs Review");
-	ok(fm(file).includes("worker launch failed"), "outcome carries the launch-failure reason");
-	ok(rig.pool.freeSlots() === 2, "slot freed after failLaunch");
-	ok(rig.emitted.some((e) => e.event === "exec:idle"), "exec:idle emitted after failLaunch");
-	ok(!fs.existsSync(join(scopedBase, "juliet")), "pre-lifecycle scoped dir pruned on launch failure (no wsMgr handle)");
-	cleanup();
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// k. haltKill: active slot killed, pane closed, scoped dir pruned
-// ══════════════════════════════════════════════════════════════════════════════
-{
-	console.log("── k. haltKill: kills the active slot, closes the pane, prunes the scoped dir");
+	console.log("── k. poll failed → escalated to Needs Review");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
 	const rig = makePool(cardsDir, scopedBase);
 	const file = mkCard(cardsDir, "kilo");
@@ -564,84 +522,116 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 
 	rig.pool.dispatch("kilo", file, { cwd: root });
 	await rig.pool.settleLaunches();
-	ok(rig.pool.hasSlot("kilo") && fs.existsSync(join(scopedBase, "kilo")), "worker live with a scoped dir before /halt");
-	const panesBefore = rig.herdr.paneCloses.length;
-	await rig.pool.haltKill("kilo");
-	ok(!rig.pool.hasSlot("kilo") && rig.pool.freeSlots() === 2, "slot freed by haltKill");
-	ok(rig.herdr.paneCloses.length > panesBefore, "worker pane closed by haltKill");
-	ok(!fs.existsSync(join(scopedBase, "kilo")), "scoped dir pruned (halt = deliberate kill)");
-	ok(rig.logged.some((e) => e.event === "EXEC_HALT_KILL" && e.card === "kilo"), "EXEC_HALT_KILL logged");
-	cleanup();
-}
+	rig.fake.setFailed("kilo");
+	await rig.pool.sweep();
 
-// ══════════════════════════════════════════════════════════════════════════════
-// l. claude driver: launch command, sentinel placeholder discipline, harvest + timeout
-// ══════════════════════════════════════════════════════════════════════════════
-{
-	console.log("── l. claude driver: pane-peer launch + wait-output completion + diff harvest");
-	const { root, cardsDir, scopedBase, cleanup } = setup();
-	const rig = makePool(cardsDir, scopedBase, { withWsMgr: true });
-	const file = mkCard(cardsDir, "lima", { worker: "claude" });
-	rig.reconciler.snapshot.set("lima", "Executing");
-	const { worktree } = injectWorktree(rig, root, scopedBase, "lima");
-	// The worker's edits + completion output exist before the (fake, instant) wait resolves.
-	fs.writeFileSync(join(worktree, "knowledge", "claude-note.md"), "# Note\n");
-	rig.herdr.setLabelOutput(workerLabel("lima"), `working...\nOUTCOME: claude did it\nFLEET_DONE_lima`);
-
-	rig.pool.dispatch("lima", file, { cwd: root });
-	await rig.pool.settleLaunches(); // the claude path finalizes inside its own launch promise
-
-	const cmd = rig.herdr.runCmds[0]?.cmd ?? "";
-	ok(cmd.includes("claude --dangerously-skip-permissions"), "claude launch command uses the REPL initial-prompt form");
-	ok(!cmd.includes("FLEET_DONE_lima"), "concrete FLEET_DONE sentinel NEVER appears in the launch prompt");
-	ok(cmd.includes("FLEET_DONE_<CARDID>"), "prompt describes the sentinel with the <CARDID> placeholder");
-	ok(rig.herdr.waitOutputCalls.some((c) => c.match === "FLEET_DONE_lima"), "wait output level-scans for the concrete sentinel");
-	ok(status(file) === "Needs Review", "claude completion → Needs Review");
+	ok(status(file) === "Needs Review", "failed worker → Needs Review");
 	const text = fm(file);
-	ok(text.includes('cost_total: "unknown (telemetry unavailable)"'), "claude worker finalizes with telemetry unavailable (no obs)");
-	ok(text.includes("diff_status: changed (1 file(s))"), "claude worktree diff harvested (real git)");
-	ok(text.includes("## Diff") && text.includes("claude-note.md"), "## Diff section carries the claude diff");
-	ok(!rig.pool.hasSlot("lima"), "claude slot freed after finalize");
-
-	// Timeout path: waitOutput resolves false → the one watchdog escalation route.
-	const rig2 = makePool(cardsDir, scopedBase, { watchdogMs: 10_000 });
-	rig2.herdr.waitOutputResult = false;
-	const file2 = mkCard(cardsDir, "mike", { worker: "claude" });
-	rig2.reconciler.snapshot.set("mike", "Executing");
-	rig2.pool.dispatch("mike", file2, { cwd: root });
-	await rig2.pool.settleLaunches();
-	ok(status(file2) === "Needs Review", "claude wait-output timeout → escalated to Needs Review");
-	ok(fm(file2).includes('review_flag: "watchdog"') && fm(file2).includes("did not signal done"), "timeout escalation flagged watchdog");
+	ok(text.includes('review_flag: "watchdog"') && text.includes("harness reported terminal failure"), "escalation flagged with the terminal-failure reason");
+	ok(rig.fake.disposedFor("kilo"), "failed worker session disposed");
+	ok(!rig.pool.hasSlot("kilo") && rig.pool.freeSlots() === 2, "slot freed after escalation");
+	ok(rig.logged.some((e) => e.event === "EXEC_ESCALATED" && e.card === "kilo" && e.mechanism === "watchdog"), "EXEC_ESCALATED logged");
 	cleanup();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// m. buildWorkerTask: CODE vs ARTIFACT contract + placeholder discipline
+// l. spawn throws → failLaunch: escalate + free the slot + prune scoped dir
 // ══════════════════════════════════════════════════════════════════════════════
 {
-	console.log("── m. task.md contract: CODE (ops) vs ARTIFACT (research)");
+	console.log("── l. spawn throws → failLaunch → Needs Review, slot freed");
 	const { root, cardsDir, scopedBase, cleanup } = setup();
 	const rig = makePool(cardsDir, scopedBase);
-	const opsFile = mkCard(cardsDir, "november", { cardType: "ops" });
-	const resFile = mkCard(cardsDir, "oscar", { cardType: "research" });
+	rig.fake.failSpawn = true;
+	const file = mkCard(cardsDir, "lima");
+	rig.reconciler.snapshot.set("lima", "Executing");
+
+	rig.pool.dispatch("lima", file, { cwd: root });
+	ok(rig.pool.freeSlots() === 1, "slot reserved before the launch failure surfaces");
+	await rig.pool.settleLaunches();
+	ok(status(file) === "Needs Review", "failed launch → Needs Review");
+	ok(fm(file).includes("worker launch failed"), "outcome carries the launch-failure reason");
+	ok(rig.pool.freeSlots() === 2, "slot freed after failLaunch");
+	ok(rig.emitted.some((e) => e.event === "exec:idle"), "exec:idle emitted after failLaunch");
+	ok(!fs.existsSync(join(scopedBase, "lima")), "pre-lifecycle scoped dir pruned on launch failure (no wsMgr handle)");
+	ok(rig.logged.some((e) => e.event === "EXEC_ESCALATED" && e.card === "lima" && e.mechanism === "launch-failure"), "EXEC_ESCALATED (launch-failure) logged");
+	cleanup();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// m. haltKill: active slot killed, session disposed, scoped dir pruned
+// ══════════════════════════════════════════════════════════════════════════════
+{
+	console.log("── m. haltKill: kills the active slot, disposes the session, prunes the scoped dir");
+	const { root, cardsDir, scopedBase, cleanup } = setup();
+	const rig = makePool(cardsDir, scopedBase);
+	const file = mkCard(cardsDir, "mike");
+	rig.reconciler.snapshot.set("mike", "Executing");
+
+	rig.pool.dispatch("mike", file, { cwd: root });
+	await rig.pool.settleLaunches();
+	ok(rig.pool.hasSlot("mike") && fs.existsSync(join(scopedBase, "mike")), "worker live with a scoped dir before /halt");
+	await rig.pool.haltKill("mike");
+	ok(!rig.pool.hasSlot("mike") && rig.pool.freeSlots() === 2, "slot freed by haltKill");
+	ok(rig.fake.disposedFor("mike"), "worker session disposed by haltKill");
+	ok(!fs.existsSync(join(scopedBase, "mike")), "scoped dir pruned (halt = deliberate kill)");
+	ok(rig.logged.some((e) => e.event === "EXEC_HALT_KILL" && e.card === "mike"), "EXEC_HALT_KILL logged");
+	cleanup();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// n. per-card `worker:` frontmatter selects the harness from the registry
+// ══════════════════════════════════════════════════════════════════════════════
+{
+	console.log("── n. per-card `worker:` field selects the adapter from the registry");
+	const { root, cardsDir, scopedBase, cleanup } = setup();
+	const fakeA = new FakeHarness("fake");
+	const fakeB = new FakeHarness("other");
+	const rig = makePool(cardsDir, scopedBase, {
+		fake: fakeA,
+		harnesses: { fake: fakeA, other: fakeB },
+		defaultHarness: "fake",
+	});
+	const fileB = mkCard(cardsDir, "november", { worker: "other" });
+	const fileA = mkCard(cardsDir, "oscar"); // no worker: field → pool default
 	rig.reconciler.snapshot.set("november", "Executing");
 	rig.reconciler.snapshot.set("oscar", "Executing");
 
-	rig.pool.dispatch("november", opsFile, { cwd: root });
-	rig.pool.dispatch("oscar", resFile, { cwd: root });
+	rig.pool.dispatch("november", fileB, { cwd: root });
+	rig.pool.dispatch("oscar", fileA, { cwd: root });
 	await rig.pool.settleLaunches();
 
-	const opsTask = fs.readFileSync(join(scopedBase, "november", "task.md"), "utf8");
-	ok(opsTask.includes("type: CODE") && opsTask.includes("Apply the edits to the named files INSIDE this worktree"), "ops card gets the CODE-change contract");
-	ok(opsTask.includes("OUTCOME: <files changed + verify result>"), "CODE contract asks for the files-changed OUTCOME");
+	ok(fakeB.spawned.length === 1 && fakeB.spawned[0].card.id === "november", "worker: other → the `other` adapter spawned november");
+	ok(fakeA.spawned.length === 1 && fakeA.spawned[0].card.id === "oscar", "no worker: field → the default adapter spawned oscar");
+	ok(rig.logged.some((e) => e.event === "EXEC_DISPATCH" && e.card === "november" && e.harness === "other"), "EXEC_DISPATCH names the selected harness");
 
-	const resTask = fs.readFileSync(join(scopedBase, "oscar", "task.md"), "utf8");
-	ok(resTask.includes("REAL knowledge paths") && resTask.includes("knowledge/FILING.md"), "research card gets the knowledge filing contract");
-	ok(resTask.includes("knowledge/decisions/my-decision.md"), "filing layout points at knowledge/decisions for cross-domain artifacts");
+	// Completion is finalized through the SELECTED adapter and annotated with its name.
+	fakeB.setDone("november");
+	await rig.pool.sweep();
+	ok(/^harness: other$/m.test(fm(fileB)), "finalize annotates the selected harness name");
+	ok(fakeB.disposedFor("november") && !fakeA.disposedFor("november"), "the selected adapter (not the default) is disposed");
+	cleanup();
+}
 
-	for (const [id, task] of [["november", opsTask], ["oscar", resTask]] as const) {
-		ok(task.includes("<<CARD-DONE:CARDID>>>") && !task.includes(`<<CARD-DONE:${id}>>>`), `${id}: sentinel placeholder discipline held`);
-	}
+// ══════════════════════════════════════════════════════════════════════════════
+// o. no-outcome-line review flag when outputTail lacks an OUTCOME line
+// ══════════════════════════════════════════════════════════════════════════════
+{
+	console.log("── o. outputTail without an OUTCOME line → review_flag no-outcome-line");
+	const { root, cardsDir, scopedBase, cleanup } = setup();
+	const rig = makePool(cardsDir, scopedBase, { withWsMgr: true });
+	const file = mkCard(cardsDir, "papa");
+	rig.reconciler.snapshot.set("papa", "Executing");
+	const { worktree } = injectWorktree(rig, root, scopedBase, "papa");
+
+	rig.pool.dispatch("papa", file, { cwd: root });
+	await rig.pool.settleLaunches();
+	fs.writeFileSync(join(worktree, "knowledge", "papa.md"), "# papa\n");
+	rig.fake.setArtifacts("papa", { outcome: "did stuff (fallback tail)", outputTail: "did stuff but never printed the marker line\n" });
+	rig.fake.setDone("papa");
+	await rig.pool.sweep();
+
+	ok(status(file) === "Needs Review", "card still finalizes to Needs Review");
+	ok(fm(file).includes('review_flag: "no-outcome-line"'), "review_flag: no-outcome-line written");
 	cleanup();
 }
 

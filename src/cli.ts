@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 // cli.ts — the holdco daemon CLI.
 //
-//   holdco serve [--cards-dir DIR] [--sweep-ms N] [--events-off]
-//       Run the engine: single-owner lease, startup recovery, reconcile loop.
+//   holdco serve [--cards-dir DIR] [--sweep-ms N] [--events-off] [--no-exec]
+//                [--worker-harness NAME] [--model M] [--max-slots N]
+//                [--card-budget-usd N] [--watchdog-ms N] [--scoped-base DIR]
+//       Run the engine: single-owner lease, startup recovery, reconcile loop,
+//       and (unless --no-exec) the execution orchestrator — approved cards are
+//       drained into isolated worktrees and executed by the configured harness
+//       (default: claude-code, headless `claude` sessions).
 //   holdco board [--cards-dir DIR]
 //       One-shot column summary.
 //   holdco move <card-id> <status> [--cards-dir DIR]
@@ -15,7 +20,14 @@ import { basename, join } from "node:path";
 import { createStandaloneHost } from "./host/host.ts";
 import { CardEngine } from "./engine/core.ts";
 import { parseCard, writeStatus } from "./engine/frontmatter.ts";
+import { Orchestrator } from "./engine/orchestrate.ts";
 import { legalTargets } from "./engine/state-machine.ts";
+import { WorkerPool } from "./engine/worker-pool.ts";
+import { WorkspaceManager } from "./engine/workspace-manager.ts";
+import { DEFAULT_SCOPED_BASE } from "./engine/workspace-paths.ts";
+import { ClaudeCodeHarness } from "./harness/claude-code.ts";
+import { CodexHarness } from "./harness/codex.ts";
+import type { Harness } from "./harness/types.ts";
 
 function parseArgs(argv: string[]): { cmd: string; pos: string[]; flags: Record<string, string> } {
 	const [cmd = "help", ...rest] = argv;
@@ -51,14 +63,54 @@ const { cmd, pos, flags } = parseArgs(process.argv.slice(2));
 
 switch (cmd) {
 	case "serve": {
+		// `--sweep-ms` is the documented spelling; the engine's config key is
+		// `card-sweep-ms` (source-system heritage). Honor both.
+		if (flags["sweep-ms"] && !flags["card-sweep-ms"]) flags["card-sweep-ms"] = flags["sweep-ms"];
 		const host = createStandaloneHost({ flags });
 		const engine = new CardEngine(host, {});
 		const res = engine.start();
 		if (!res.owner) process.exit(1);
+
+		let orchestrator: Orchestrator | null = null;
+		if (flags["no-exec"] !== "true") {
+			const num = (key: string, dflt: number) => {
+				const v = Number(host.config.get(key));
+				return Number.isFinite(v) && v > 0 ? v : dflt;
+			};
+			const cwd = process.cwd();
+			const scopedBase = host.config.get("scoped-base") || DEFAULT_SCOPED_BASE;
+			// Registered adapters. Pi needs a live herdr session + obs server — it joins
+			// the registry when its shell wires it in (or a later `--pi` bring-up); a
+			// card asking for an unregistered harness escalates loudly at dispatch.
+			const harnesses: Record<string, Harness> = {
+				"claude-code": new ClaudeCodeHarness({ claudeBin: host.config.get("claude-bin") || "claude" }),
+				codex: new CodexHarness(),
+			};
+			const wsMgr = new WorkspaceManager({ host, scopedBase });
+			const pool = new WorkerPool({
+				host,
+				reconciler: engine.reconciler!,
+				harnesses,
+				defaultHarness: host.config.get("worker-harness") || "claude-code",
+				maxSlots: num("max-slots", 3),
+				cardBudgetUsd: num("card-budget-usd", 0.5),
+				watchdogMs: num("watchdog-ms", 600_000),
+				wsMgr,
+				scopedBase,
+				model: host.config.get("model") || undefined,
+			});
+			orchestrator = new Orchestrator({ host, engine, pool, wsMgr, cwd });
+			orchestrator.start(num("sweep-ms", 2000));
+			console.error(`holdco: executing via ${host.config.get("worker-harness") || "claude-code"} harness (--no-exec to disable)`);
+		}
+
 		console.error(`holdco: serving ${engine.cardsDir} (ctrl-c to stop)`);
 		const bye = () => {
-			engine.stop();
-			process.exit(0);
+			void (async () => {
+				if (orchestrator) await orchestrator.stop();
+				engine.stop();
+				process.exit(0);
+			})();
 		};
 		process.on("SIGINT", bye);
 		process.on("SIGTERM", bye);

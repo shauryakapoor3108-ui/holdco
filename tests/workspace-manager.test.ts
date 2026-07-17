@@ -232,11 +232,13 @@ async function run() {
 	const t = setup();
 	const { wsm, herdr } = createWSM(t.scopedBase);
 	await wsm.onIntake("T1", "/cards/T1.md", t.repo);
+	// herdr-mode: the workspaceId is a real string (null only in worktree-only mode).
 	const wsId = wsm.getWorkspace("T1")!.workspaceId;
+	ok(wsId !== null, "herdr-mode workspace has a real workspaceId");
 	// Write a dummy file to scoped dir.
 	fs.writeFileSync(join(t.scopedBase, "T1", "dummy.txt"), "data", "utf8");
 	await wsm.onTerminal("T1", t.repo);
-	ok(herdr.closed.includes(wsId), "workspace closed on terminal");
+	ok(wsId !== null && herdr.closed.includes(wsId), "workspace closed on terminal");
 	ok(!wsm.hasWorkspace("T1"), "removed from lifecycleWorkspaces");
 	ok(!fs.existsSync(join(t.scopedBase, "T1")), "scoped dir (incl. worktree) pruned");
 	// Verify worktree removed from git metadata.
@@ -254,7 +256,7 @@ async function run() {
 	const wsId = wsm.getWorkspace("HK1")!.workspaceId;
 	fs.writeFileSync(join(t.scopedBase, "HK1", "evidence.txt"), "keep", "utf8");
 	await wsm.haltKill("HK1", t.repo);
-	ok(herdr.closed.includes(wsId), "workspace closed by haltKill");
+	ok(wsId !== null && herdr.closed.includes(wsId), "workspace closed by haltKill");
 	ok(!fs.existsSync(join(t.scopedBase, "HK1")), "scoped dir pruned by haltKill");
 	ok(!wsm.hasWorkspace("HK1"), "removed from lifecycleWorkspaces");
 	t.cleanup();
@@ -307,7 +309,7 @@ async function run() {
 	const ws1 = wsm.getWorkspace("S1")!.workspaceId;
 	const ws2 = wsm.getWorkspace("S2")!.workspaceId;
 	await wsm.shutdown();
-	ok(herdr.closed.includes(ws1) && herdr.closed.includes(ws2), "both workspaces closed");
+	ok(ws1 !== null && ws2 !== null && herdr.closed.includes(ws1) && herdr.closed.includes(ws2), "both workspaces closed");
 	ok(wsm.lifecycleWorkspaces.size === 0, "map cleared");
 	// Scoped dirs MUST survive shutdown.
 	ok(fs.existsSync(join(t.scopedBase, "S1", "keep.txt")), "S1 scoped dir survives shutdown");
@@ -351,6 +353,46 @@ async function run() {
 	await wsm.onTerminal("DT", t.repo);
 	await wsm.onTerminal("DT", t.repo); // second call
 	ok(herdr.closed.filter((c) => c === wsId).length === 1, "workspace closed exactly once");
+	t.cleanup();
+}
+
+	console.log("\n── worktree-only mode: no herdr dep — the git worktree IS the isolation ──");
+
+{
+	const t = setup();
+	const cap = captureHost();
+	// NO herdr in deps: the standalone daemon with a headless harness runs this way.
+	const wsm = new WorkspaceManager({ host: cap.host, now: () => Date.now(), scopedBase: t.scopedBase });
+
+	// onIntake: scoped dir + REAL git worktree + workspace.json, workspace:ready with null ids.
+	await wsm.onIntake("W1", "/cards/W1.md", t.repo);
+	ok(wsm.hasWorkspace("W1"), "lifecycleWorkspaces has W1 after onIntake (no herdr)");
+	ok(fs.existsSync(join(t.scopedBase, "W1")), "scoped dir created on disk");
+	ok(fs.existsSync(join(t.scopedBase, "W1", "worktree", "README.md")), "real git worktree created inside scoped dir");
+	ok(fs.existsSync(join(t.scopedBase, "W1", "workspace.json")), "workspace.json written");
+	const meta = JSON.parse(fs.readFileSync(join(t.scopedBase, "W1", "workspace.json"), "utf8"));
+	ok(meta.workspaceId === null && meta.paneId === null, "workspace.json carries null herdr ids (worktree-only)");
+	ok(typeof meta.baseCommit === "string" && meta.baseCommit.length > 0, "workspace.json records the worktree's creation base");
+	const handle = wsm.getWorkspace("W1")!;
+	ok(handle.workspaceId === null && handle.paneId === null, "handle workspaceId/paneId are null in worktree-only mode");
+	const ready = emittedFor(cap, "workspace:ready");
+	ok(ready.length === 1 && ready[0].id === "W1", "workspace:ready emitted");
+	ok(ready[0].workspaceId === null, "workspace:ready carries workspaceId null");
+	ok(typeof ready[0].worktreePath === "string" && ready[0].worktreePath.endsWith("/worktree"), "workspace:ready carries the worktree path");
+
+	// onTerminal: prunes the worktree + scoped dir (no herdr close to make).
+	await wsm.onTerminal("W1", t.repo);
+	ok(!wsm.hasWorkspace("W1"), "removed from lifecycleWorkspaces on terminal");
+	ok(!fs.existsSync(join(t.scopedBase, "W1")), "scoped dir (incl. worktree) pruned on terminal");
+	const list = execSync(`git -C ${t.repo} worktree list`, GIT).toString();
+	ok(!list.includes(join(t.scopedBase, "W1")), "worktree no longer listed by git worktree list");
+
+	// shutdown: clears the map without touching herdr (there is none), scoped dirs survive.
+	await wsm.onIntake("W2", "/cards/W2.md", t.repo);
+	await wsm.onIntake("W3", "/cards/W3.md", t.repo);
+	await wsm.shutdown();
+	ok(wsm.lifecycleWorkspaces.size === 0, "shutdown clears the map (no herdr to touch)");
+	ok(fs.existsSync(join(t.scopedBase, "W2", "worktree")) && fs.existsSync(join(t.scopedBase, "W3")), "scoped dirs survive shutdown");
 	t.cleanup();
 }
 

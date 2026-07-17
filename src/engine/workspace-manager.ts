@@ -40,7 +40,11 @@ function escapeRe(s: string): string {
 
 export interface WorkspaceManagerDeps {
 	host: EngineHost;
-	herdr: HerdrAdapter;
+	/** OPTIONAL: the herdr transport for visible per-card workspaces (the Pi-adapter
+	 *  surface). Absent → worktree-only mode: the git worktree is still the isolation
+	 *  primitive; no panes, no workspace ids. The standalone daemon with a headless
+	 *  harness (Claude Code) runs this way. */
+	herdr?: HerdrAdapter;
 	maxLifecycleWorkspaces?: number;
 	now?: () => number;
 	/** Base dir for per-card scoped dirs + worktrees. Default DEFAULT_SCOPED_BASE. */
@@ -139,11 +143,13 @@ export class WorkspaceManager {
 		const ws = this.lifecycleWorkspaces.get(id);
 		if (!ws) return;
 
-		// Close the herdr workspace.
-		try {
-			await this.d.herdr.workspaceClose(ws.workspaceId);
-		} catch {
-			/* best-effort */
+		// Close the herdr workspace (when one exists — worktree-only mode has none).
+		if (this.d.herdr && ws.workspaceId) {
+			try {
+				await this.d.herdr.workspaceClose(ws.workspaceId);
+			} catch {
+				/* best-effort */
+			}
 		}
 
 		// Remove the git worktree.
@@ -189,7 +195,7 @@ export class WorkspaceManager {
 	async startupReaper(cwd: string, snapshot: Map<string, string>): Promise<string[]> {
 		const closed: string[] = [];
 		try {
-			const workspaces = await this.d.herdr.workspaceList();
+			const workspaces = this.d.herdr ? await this.d.herdr.workspaceList() : [];
 			for (const ws of workspaces) {
 				const cardId = this.cardIdFromLabel(ws.label);
 				if (!cardId) continue;
@@ -220,7 +226,7 @@ export class WorkspaceManager {
 					continue;
 				}
 				// Orphan — close workspace + force-remove worktree + prune.
-				await this.d.herdr.workspaceClose(ws.workspace_id);
+				await this.d.herdr!.workspaceClose(ws.workspace_id);
 				const worktreePath = this.worktreeDir(cardId);
 				try { gitWorktreeRemove(cwd, worktreePath); } catch { /* best-effort */ }
 				try { gitWorktreePrune(cwd); } catch { /* best-effort */ }
@@ -277,9 +283,11 @@ export class WorkspaceManager {
 	 *  cards will be cleaned up by the reconstitution sweep. */
 	async shutdown(): Promise<void> {
 		for (const [id, ws] of [...this.lifecycleWorkspaces.entries()]) {
-			try {
-				await this.d.herdr.workspaceClose(ws.workspaceId);
-			} catch { /* best-effort */ }
+			if (this.d.herdr && ws.workspaceId) {
+				try {
+					await this.d.herdr.workspaceClose(ws.workspaceId);
+				} catch { /* best-effort */ }
+			}
 			this.lifecycleWorkspaces.delete(id);
 		}
 	}
@@ -363,23 +371,26 @@ export class WorkspaceManager {
 			this.log("WS_SYMLINK_WARN", { card: id, phase: "node_modules-symlink", error: String(err) });
 		}
 
-		// 3. Create herdr workspace with --cwd = the worktree (NOT the shared repo).
+		// 3. Create the herdr workspace with --cwd = the worktree (NOT the shared repo)
+		//    — Pi-adapter surface only; worktree-only mode (no herdr dep) skips it.
 		let workspaceId: string | null = null;
 		let paneId: string | null = null;
-		try {
-			const ws = await this.d.herdr.workspaceCreate(`${this.labelPrefix}${id}`, worktreePath);
-			if (!ws.ok || !ws.workspaceId) {
-				const err = "herdr workspace create failed (ok=false or no workspaceId)";
-				this.log("WS_CREATE_FAILED", { card: id, phase: "herdr-create", error: err });
-				this.d.host.events.emit("workspace:failed", { id, file, reason: err });
+		if (this.d.herdr) {
+			try {
+				const ws = await this.d.herdr.workspaceCreate(`${this.labelPrefix}${id}`, worktreePath);
+				if (!ws.ok || !ws.workspaceId) {
+					const err = "herdr workspace create failed (ok=false or no workspaceId)";
+					this.log("WS_CREATE_FAILED", { card: id, phase: "herdr-create", error: err });
+					this.d.host.events.emit("workspace:failed", { id, file, reason: err });
+					return;
+				}
+				workspaceId = ws.workspaceId;
+				paneId = ws.paneId;
+			} catch (err) {
+				this.log("WS_CREATE_FAILED", { card: id, phase: "herdr-create", error: String(err) });
+				this.d.host.events.emit("workspace:failed", { id, file, reason: `herdr error: ${String(err)}` });
 				return;
 			}
-			workspaceId = ws.workspaceId;
-			paneId = ws.paneId;
-		} catch (err) {
-			this.log("WS_CREATE_FAILED", { card: id, phase: "herdr-create", error: String(err) });
-			this.d.host.events.emit("workspace:failed", { id, file, reason: `herdr error: ${String(err)}` });
-			return;
 		}
 
 		// 4. Write workspace.json.

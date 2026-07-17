@@ -47,7 +47,9 @@ const LANDING_EVENTS: Record<string, string> = {
 export class CardEngine {
 	readonly cardsDir: string;
 	private readonly host: EngineHost;
-	private reconciler: Reconciler | null = null;
+	/** The live reconciler (null before start()). The orchestrator's drain reads
+	 *  scan/snapshot through this — ONE snapshot per board, never a second instance. */
+	reconciler: Reconciler | null = null;
 	private interval: ReturnType<typeof setInterval> | null = null;
 	private watcher: fs.FSWatcher | null = null;
 	private debounce: ReturnType<typeof setTimeout> | null = null;

@@ -130,7 +130,8 @@ export const CARD_WORKSPACE_LABEL_PREFIX = "card-";
 /** Per-card lifecycle workspace handle (in-memory, process-local). */
 export interface WorkspaceHandle {
 	cardId: string;
-	workspaceId: string;
+	/** herdr workspace id (Pi-adapter surface) — null in worktree-only mode. */
+	workspaceId: string | null;
 	paneId: string | null;
 	scopedDir: string; // <scopedBase>/<id>
 	worktreePath: string; // <scopedBase>/<id>/worktree (Slice 3: git worktree)

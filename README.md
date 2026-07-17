@@ -35,7 +35,9 @@
 - **Owner lease** (`src/engine/owner-lease.ts`) — single-owner guard; two engines can't fight over one board.
 - **Goal DAG** (`src/engine/goal-dag.ts`) — cards with `depends_on` rest in a holding column until their dependency graph files; cycles rejected at admission.
 - **Workspace manager** (`src/engine/workspace-manager.ts`) — per-card scoped dir + git worktree at intake, capped concurrency with a deferred-intake queue, idempotent crash-resume, startup reaper.
-- **Worker pool** (`src/engine/worker-pool.ts`) — N-slot dispatch of execution-only workers into isolated worktrees; completion sentinels, per-run budget kill, watchdog escalation, circuit breaker, unified git-diff harvest written back to the card.
+- **Worker pool** (`src/engine/worker-pool.ts`) — N-slot dispatch of execution-only workers into isolated worktrees, driven through the Harness seam; per-run budget kill, activity watchdog, circuit breaker, unified git-diff harvest written back to the card.
+- **Harness adapters** (`src/harness/`) — the `spawn / inject / poll / collect / dispose` contract (`types.ts`), a shipped conformance suite (`conformance.ts`), one policy evaluator enforced natively per harness (`policy.ts`): **Claude Code** (headless sessions, PreToolUse hook guard), **Pi** (herdr panes, tool-call guard extension), **Codex** (documented stub — pass conformance to finish it).
+- **Orchestrator** (`src/engine/orchestrate.ts`) — the daemon glue: workspace at intake, queue drain into free slots (human pull-backs always win), teardown at terminal states.
 - **Executor** (`src/engine/executor.ts`) — the single-slot inline dispatcher (the worker pool's REPL-hosted predecessor); usage accumulation, checkpoint heartbeats, outcome extraction.
 
 Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
@@ -43,9 +45,9 @@ Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
 ## Roadmap to v1
 
 - [x] `EngineHost` shim — engine runs standalone (daemon CLI), Pi becomes one shell of two
-- [x] Worker orchestration standalone — executor / worker pool / workspace manager run against `EngineHost`; live-proven with a real Claude Code worker in an isolated worktree (`scripts/live-m1-claude-worker.ts`)
-- [ ] Harness adapter interface (`spawn / inject / poll / collect / dispose` + telemetry conformance)
-- [ ] Pi adapter (port) + Claude Code adapter (new) + Codex conformance stub
+- [x] Worker orchestration standalone — executor / worker pool / workspace manager run against `EngineHost`
+- [x] Harness adapter interface (`spawn / inject / poll / collect / dispose` + telemetry conformance)
+- [x] Pi adapter (port) + Claude Code adapter (new) + Codex conformance stub — live-proven E2E: `holdco serve` drains a human approval into an isolated worktree, a headless Claude Code worker executes it with the policy hook blocking `git commit` natively, diff + usage/cost harvested back to the card (`scripts/live-m2-daemon.sh`)
 - [ ] Task classifier + cost-aware model routing (chore → workhorse, plan/review → frontier)
 - [ ] Connector interface + Discord + IMAP reference implementations
 - [ ] Deck: attention rail, kanban, live flow map with per-node prompt/spend inspection
