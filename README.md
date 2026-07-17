@@ -26,6 +26,40 @@
                              └────────────┘
 ```
 
+## Quickstart
+
+Requires Node ≥ 24 and the [`claude` CLI](https://claude.com/claude-code) installed + authenticated. No runtime dependencies to install.
+
+```bash
+git clone <this-repo> holdco
+mkdir my-board && cd my-board && git init -b main
+git commit --allow-empty -m init
+
+# 1. run the engine (scaffolds cards/ + knowledge/ on first boot)
+node ../holdco/src/cli.ts serve --sweep-ms 1000
+
+# 2. in another terminal: drop a card at the human gate
+cat > cards/hello.md <<'EOF'
+---
+type: card
+id: hello
+title: "First card"
+status: Needs Approval
+card_type: maintenance
+---
+
+## Brief
+Create a file HELLO.md containing one line: `hello from holdco`.
+
+## Reconciler Log
+EOF
+
+# 3. approve it — that's the only human step
+node ../holdco/src/cli.ts move hello Queued
+```
+
+Within a few seconds the daemon classifies the card (cheap model → workhorse tier), cuts an isolated git worktree, runs a headless Claude Code worker in it with the safety policy hooked in natively, and lands the card at `Needs Review` with the harvested diff, outcome, and cost written onto it. `cat cards/hello.md` to see everything. Add `--obs-url` + `holdco obs` for live StageEvent telemetry.
+
 ## What exists today
 
 - **State machine** (`src/engine/state-machine.ts`) — the legal-transition matrix: 8 live columns + 4 sinks, per-edge actor permissions (`human` / `engine`), goal-DAG holding column. The engine can never skip a human gate — illegal transitions auto-revert.
