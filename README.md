@@ -57,7 +57,8 @@ Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
 - [x] Task classifier + cost-aware model routing — cheap-model triage (delegation / complexity / outcome), config-driven tiers in `knowledge/routing.json`, decision written onto the card; live-proven: a chore card auto-ran on the workhorse tier at ~1/5 the cost (`scripts/live-m5-routing.sh`)
 - [x] StageEvent telemetry at the adapter boundary + observability server (SQLite + SSE) — live-proven: a real run's full event sequence stored queryably and delivered over SSE (`scripts/live-m6-telemetry.sh`)
 - [x] Connector interface + Discord + IMAP reference implementations — live-proven: a Discord message and an email each drafted exactly one provenance-stamped card through the running daemon; redelivery deduped (`scripts/live-m7-intake.sh`)
-- [ ] Deck: attention rail, kanban, live flow map with per-node prompt/spend inspection
+- [x] Deck data contract — `docs/DECK.md` + synthetic demo fixture + `holdco replay` demo feed over live SSE (`scripts/live-m8-deck-feed.sh`); the deck UI builds externally against this contract
+- [ ] Deck UI: attention rail, kanban, live flow map with per-node prompt/spend inspection (separate build track against `docs/DECK.md`)
 - [ ] Safety policy conformance (path-scoped write guards, enforced natively per harness)
 
 ## License

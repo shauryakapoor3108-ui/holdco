@@ -14,6 +14,10 @@
 //   holdco obs [--port N] [--db PATH] [--token T]
 //       Run the observability server: schema-validated StageEvent ingest into
 //       SQLite + SSE fan-out (the deck's data source).
+//   holdco replay [FIXTURE.jsonl] --obs-url URL [--obs-token T] [--speed N]
+//       Deck demo mode: replay a synthetic StageEvent fixture into a running
+//       obs server at (optionally slowed) real pace. Default fixture:
+//       deck/fixtures/demo-board.jsonl.
 //   holdco board [--cards-dir DIR]
 //       One-shot column summary.
 //   holdco move <card-id> <status> [--cards-dir DIR]
@@ -36,6 +40,7 @@ import { ClaudeCodeHarness } from "./harness/claude-code.ts";
 import { CodexHarness } from "./harness/codex.ts";
 import type { Harness } from "./harness/types.ts";
 import { CardDrafter } from "./connectors/drafter.ts";
+import { replayFixture } from "./deck/replay.ts";
 import { DiscordConnector } from "./connectors/discord.ts";
 import { ImapConnector } from "./connectors/imap.ts";
 import type { Connector } from "./connectors/types.ts";
@@ -218,6 +223,20 @@ switch (cmd) {
 		const obsBye = () => void srv.close().then(() => process.exit(0));
 		process.on("SIGINT", obsBye);
 		process.on("SIGTERM", obsBye);
+		break;
+	}
+	case "replay": {
+		const obsUrl = flags["obs-url"];
+		if (!obsUrl) {
+			console.error("usage: holdco replay [fixture.jsonl] --obs-url URL [--obs-token T] [--speed N]");
+			process.exit(2);
+		}
+		const fixture = pos[0] ?? new URL("../deck/fixtures/demo-board.jsonl", import.meta.url).pathname;
+		const speed = flags.speed !== undefined ? Number(flags.speed) : 1;
+		console.error(`holdco replay: ${fixture} → ${obsUrl} (speed ${speed || "firehose"})`);
+		const tally = await replayFixture({ file: fixture, url: obsUrl, token: flags["obs-token"], speed });
+		console.log(`replayed ${tally.sent} event(s), ${tally.rejected} rejected`);
+		if (tally.rejected > 0) process.exit(1);
 		break;
 	}
 	case "board": {

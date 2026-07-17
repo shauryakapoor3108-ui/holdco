@@ -8,7 +8,7 @@
 		"node": ">=22.6"
 	},
 	"scripts": {
-		"test": "node tests/state-machine.test.ts && node tests/core.test.ts && node tests/git-ops.test.ts && node tests/executor.test.ts && node tests/workspace-manager.test.ts && node tests/worker-pool.test.ts && node tests/orchestrate.test.ts && node tests/harness-pi.test.ts && node tests/harness-claude-code.test.ts && node tests/knowledge.test.ts && node tests/schema.test.ts && node tests/routing.test.ts && node tests/telemetry.test.ts && node tests/obs-server.test.ts && node tests/connectors.test.ts",
+		"test": "node tests/state-machine.test.ts && node tests/core.test.ts && node tests/git-ops.test.ts && node tests/executor.test.ts && node tests/workspace-manager.test.ts && node tests/worker-pool.test.ts && node tests/orchestrate.test.ts && node tests/harness-pi.test.ts && node tests/harness-claude-code.test.ts && node tests/knowledge.test.ts && node tests/schema.test.ts && node tests/routing.test.ts && node tests/telemetry.test.ts && node tests/obs-server.test.ts && node tests/connectors.test.ts && node tests/deck.test.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
