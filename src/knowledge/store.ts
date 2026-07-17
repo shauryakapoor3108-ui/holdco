@@ -30,6 +30,7 @@ import { join } from "node:path";
 import type { EngineHost } from "../host/host.ts";
 import type { SafetyPolicy } from "../harness/types.ts";
 import { DEFAULT_DENY_COMMANDS } from "../harness/types.ts";
+import { DEFAULT_ROUTING } from "../routing/table.ts";
 
 /** Schema version stamped into seeded files; JSON Schemas in schema/ validate them. */
 export const KNOWLEDGE_SCHEMA_VERSION = 1;
@@ -102,6 +103,7 @@ export class KnowledgeStore {
 		seed("FILING.md", SEED_FILING);
 		seed("constraints.md", SEED_CONSTRAINTS);
 		seed("permissions.json", JSON.stringify(seedPermissions(), null, "\t") + "\n");
+		seed("routing.json", JSON.stringify(DEFAULT_ROUTING, null, "\t") + "\n");
 	}
 
 	// ── constraints (single source, rendered per harness) ──────────────────────

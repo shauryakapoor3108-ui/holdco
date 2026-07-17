@@ -47,6 +47,9 @@ export interface WorkerSlot {
 	cardType: string;
 	/** The Harness adapter driving this card (per-card `worker:` field or the pool default). */
 	harnessName: string;
+	/** Model for this run: the card's `model:` field (routing decision or human
+	 *  pin) over the pool default. Undefined → the harness's own default. */
+	model?: string;
 	cwd: string; // the git worktree root (<scopedBase>/<id>/worktree)
 	runId: string; // per-spawn nonce → telemetry correlation tag
 	scopedDir: string; // <scopedBase>/<card-id> (metadata dir; worktree lives inside it)
@@ -206,6 +209,7 @@ export class WorkerPool {
 			domain,
 			cardType,
 			harnessName: resolved.name,
+			model: readField(file, "model") || this.d.model,
 			cwd,
 			runId: `${cardId}-${this.now()}-${Math.random().toString(36).slice(2, 8)}`,
 			scopedDir: scopedDirFor({ scopedBase: this.scopedBase }, cardId),
@@ -216,7 +220,7 @@ export class WorkerPool {
 			harvested: false,
 		};
 		this.slots.set(cardId, slot);
-		this.log("EXEC_DISPATCH", { card: cardId, domain, harness: resolved.name, runId: slot.runId, file: slot.relPath, worktree: cwd });
+		this.log("EXEC_DISPATCH", { card: cardId, domain, harness: resolved.name, model: slot.model ?? null, runId: slot.runId, file: slot.relPath, worktree: cwd });
 		this.d.host.notify(`🃏 spawning ${resolved.name} worker for ${cardId} (${this.activeCount()}/${this.d.maxSlots} slots)`, "info");
 		this.launches.push(this.launch(slot, resolved.harness, instruction));
 	}
@@ -246,7 +250,7 @@ export class WorkerPool {
 				instruction,
 				card: { id: slot.cardId, domain: slot.domain, cardType: slot.cardType },
 				runId: slot.runId,
-				model: this.d.model,
+				model: slot.model,
 				policy: this.policyFor(slot),
 				constraints: this.d.knowledge?.loadConstraints() || undefined,
 			});

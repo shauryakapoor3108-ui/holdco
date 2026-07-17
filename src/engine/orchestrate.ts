@@ -21,7 +21,11 @@
 
 import type { EngineHost } from "../host/host.ts";
 import type { Disposer } from "../host/host.ts";
+import type { KnowledgeStore } from "../knowledge/store.ts";
+import type { Classifier } from "../routing/classify.ts";
+import { routeFor, type RoutingTable } from "../routing/table.ts";
 import type { CardEngine } from "./core.ts";
+import { readInstruction } from "./executor.ts";
 import { parseCard, readRawField, writeStatus } from "./frontmatter.ts";
 import type { WorkerPool } from "./worker-pool.ts";
 import type { WorkspaceManager } from "./workspace-manager.ts";
@@ -36,6 +40,14 @@ export interface OrchestratorDeps {
 	/** The board/repo root (worktrees are cut from this repo). */
 	cwd: string;
 	now?: () => number;
+	/** The triage stage: classifies a card before its first dispatch so the
+	 *  routing table picks the model tier. Absent → no classification (cards run
+	 *  on the pool's default model). */
+	classifier?: Classifier;
+	/** The model routing table (knowledge/routing.json, loaded by the shell). */
+	routing?: RoutingTable;
+	/** For message-log entries on classification decisions. */
+	knowledge?: KnowledgeStore;
 }
 
 export class Orchestrator {
@@ -108,6 +120,43 @@ export class Orchestrator {
 				if (!this.d.wsMgr.hasWorkspace(id)) {
 					void this.d.wsMgr.onIntake(id, scan.file, this.d.cwd);
 					continue; // dispatch next tick, once the worktree exists
+				}
+
+				// TRIAGE (once per card): classify → route → write the decision ONTO
+				// the card (class / tier / model / classified_by). Status is unchanged,
+				// so the write produces no reconcile delta. A human-pinned `model:`
+				// field always wins — routing never overrides it.
+				if (this.d.classifier && this.d.routing && !readRawField(scan.file, "class")) {
+					const c = await this.d.classifier.classify({
+						id,
+						title: readRawField(scan.file, "title") ?? "",
+						cardType: readRawField(scan.file, "card_type") ?? "",
+						instruction: readInstruction(scan.file),
+					});
+					const { tier, model } = routeFor(this.d.routing, c.class);
+					const pinned = readRawField(scan.file, "model");
+					writeStatus(scan.file, "Queued", {
+						annotations: { class: c.class, tier, classified_by: c.via, ...(pinned ? {} : { model }) },
+						logLine: `classified ${c.class} → ${tier}${pinned ? ` (model pinned: ${pinned})` : ` (${model})`} via ${c.via}: ${c.rationale}`,
+					});
+					this.d.host.log.entry("card-engine-log", {
+						event: "EXEC_CLASSIFIED",
+						card: id,
+						class: c.class,
+						delegation: c.delegation,
+						complexity: c.complexity,
+						outcome_shape: c.outcome,
+						tier,
+						model: pinned || model,
+						via: c.via,
+						rationale: c.rationale,
+						ts: new Date().toISOString(),
+					});
+					this.d.knowledge?.appendMessage(id, {
+						author: "engine",
+						kind: "status",
+						text: `classified ${c.class} → ${tier} tier (${pinned || model}) via ${c.via}: ${c.rationale}`,
+					});
 				}
 
 				// The engine edge: Queued → Executing, loop-suppressed, then dispatch.

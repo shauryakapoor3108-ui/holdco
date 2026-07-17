@@ -29,6 +29,8 @@ import { ClaudeCodeHarness } from "./harness/claude-code.ts";
 import { CodexHarness } from "./harness/codex.ts";
 import type { Harness } from "./harness/types.ts";
 import { KnowledgeStore } from "./knowledge/store.ts";
+import { HeadlessModelClassifier, RuleClassifier } from "./routing/classify.ts";
+import { loadRoutingTable } from "./routing/table.ts";
 
 function parseArgs(argv: string[]): { cmd: string; pos: string[]; flags: Record<string, string> } {
 	const [cmd = "help", ...rest] = argv;
@@ -105,7 +107,19 @@ switch (cmd) {
 				scopedBase,
 				model: host.config.get("model") || undefined,
 			});
-			orchestrator = new Orchestrator({ host, engine, pool, wsMgr, cwd });
+			// Triage: cheap-model classification routes each card to a model tier
+			// (knowledge/routing.json). `--classifier rule` forces the deterministic
+			// rules (no model call); `--classifier off` disables triage.
+			const routing = loadRoutingTable(cwd, (m) => host.notify(m, "warning"));
+			const classifierMode = host.config.get("classifier") || "model";
+			const classifier =
+				classifierMode === "off"
+					? undefined
+					: classifierMode === "rule"
+						? new RuleClassifier()
+						: new HeadlessModelClassifier({ model: routing.classifier.model, claudeBin: host.config.get("claude-bin") || "claude" });
+
+			orchestrator = new Orchestrator({ host, engine, pool, wsMgr, cwd, classifier, routing, knowledge });
 			orchestrator.start(num("sweep-ms", 2000));
 			console.error(`holdco: executing via ${host.config.get("worker-harness") || "claude-code"} harness (--no-exec to disable)`);
 		}

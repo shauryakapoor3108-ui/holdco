@@ -1,0 +1,34 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "holdco routing table",
+	"description": "knowledge/routing.json — the cost-aware model routing table. Produced by KnowledgeStore.ensure() (seed) and human edits; consumed by src/routing/table.ts at daemon boot. Routes card classes to model tiers; re-routing is a config edit, never a code change.",
+	"version": 1,
+	"type": "object",
+	"required": ["version", "tiers", "routes", "classifier"],
+	"additionalProperties": false,
+	"properties": {
+		"version": { "type": "integer", "minimum": 1 },
+		"tiers": {
+			"type": "object",
+			"required": ["workhorse", "frontier"],
+			"additionalProperties": false,
+			"properties": {
+				"workhorse": { "type": "string", "minLength": 1 },
+				"frontier": { "type": "string", "minLength": 1 }
+			}
+		},
+		"routes": {
+			"type": "object",
+			"required": ["default"],
+			"additionalProperties": true
+		},
+		"classifier": {
+			"type": "object",
+			"required": ["model"],
+			"additionalProperties": false,
+			"properties": {
+				"model": { "type": "string", "minLength": 1 }
+			}
+		}
+	}
+}

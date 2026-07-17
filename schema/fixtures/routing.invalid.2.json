@@ -1,0 +1,6 @@
+{
+	"version": 1,
+	"tiers": { "workhorse": "claude-haiku-4-5", "frontier": "claude-opus-4-8" },
+	"routes": { "chore": "workhorse" },
+	"classifier": { "model": "claude-haiku-4-5" }
+}

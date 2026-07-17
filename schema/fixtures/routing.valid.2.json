@@ -1,0 +1,6 @@
+{
+	"version": 2,
+	"tiers": { "workhorse": "demo-cheap-model", "frontier": "demo-frontier-model" },
+	"routes": { "default": "frontier" },
+	"classifier": { "model": "demo-cheap-model" }
+}
