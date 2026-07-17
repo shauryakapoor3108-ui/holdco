@@ -41,6 +41,7 @@
 - **Unified knowledge layer** (`src/knowledge/store.ts`) — ONE governed `knowledge/` dir per board: single-source `constraints.md` rendered natively into every worker on every harness (conformance-tested), single-source `permissions.json` enforced natively per harness (fail-safe: a broken config narrows authority, never widens it), and a per-card append-only message log — the substrate for v2 agent teams.
 - **Classifier + model routing** (`src/routing/`) — a cheap-model triage stage answers delegation / complexity / outcome per card, and `knowledge/routing.json` maps its class to a model tier (`chore → workhorse`, `plan/review → frontier`). The decision lands on the card as provenance; a human-pinned `model:` always wins; a dead classifier degrades to deterministic rules, never blocks the board.
 - **Schemas** (`schema/`) — versioned JSON Schemas for every data contract (card frontmatter, StageEvent, filing artifact, constraints, permissions, routing), fixture-validated in CI by a zero-dep validator.
+- **Connectors** (`src/connectors/`) — the intake mirror of the harness seam: `subscribe → normalize → draft card w/ provenance {surfaced_by, source_type, source_ref, drafter}`. Discord (REST polling) + IMAP (minimal IMAP4rev1 over TLS) ship; a shipped conformance suite (`conformance.ts`) is the acceptance bar for Slack/Telegram/webhook contributions. Drafted cards land at Draft — nothing executes until a human promotes them; dedupe is deterministic on `source_ref`.
 - **StageEvent telemetry + observability server** (`src/telemetry/`, `src/obs/`) — the engine emits deck telemetry at the harness boundary (gates, classify, worker, harvest — IDENTICAL sequences regardless of adapter; only the `harness` field differs, and a test enforces it). `holdco obs` ingests schema-validated events into SQLite and fans them out over SSE — the deck's data source.
 - **Executor** (`src/engine/executor.ts`) — the single-slot inline dispatcher (the worker pool's REPL-hosted predecessor); usage accumulation, checkpoint heartbeats, outcome extraction.
 
@@ -55,7 +56,7 @@ Run the tests: `npm test` — no dependencies, plain Node ≥ 22.6.
 - [x] Unified knowledge layer — one store for constraints / permissions / filing / per-card message logs, consumed by all harnesses (`scripts/live-m3-knowledge.sh`)
 - [x] Task classifier + cost-aware model routing — cheap-model triage (delegation / complexity / outcome), config-driven tiers in `knowledge/routing.json`, decision written onto the card; live-proven: a chore card auto-ran on the workhorse tier at ~1/5 the cost (`scripts/live-m5-routing.sh`)
 - [x] StageEvent telemetry at the adapter boundary + observability server (SQLite + SSE) — live-proven: a real run's full event sequence stored queryably and delivered over SSE (`scripts/live-m6-telemetry.sh`)
-- [ ] Connector interface + Discord + IMAP reference implementations
+- [x] Connector interface + Discord + IMAP reference implementations — live-proven: a Discord message and an email each drafted exactly one provenance-stamped card through the running daemon; redelivery deduped (`scripts/live-m7-intake.sh`)
 - [ ] Deck: attention rail, kanban, live flow map with per-node prompt/spend inspection
 - [ ] Safety policy conformance (path-scoped write guards, enforced natively per harness)
 

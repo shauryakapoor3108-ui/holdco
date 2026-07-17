@@ -35,6 +35,10 @@ import { DEFAULT_SCOPED_BASE } from "./engine/workspace-paths.ts";
 import { ClaudeCodeHarness } from "./harness/claude-code.ts";
 import { CodexHarness } from "./harness/codex.ts";
 import type { Harness } from "./harness/types.ts";
+import { CardDrafter } from "./connectors/drafter.ts";
+import { DiscordConnector } from "./connectors/discord.ts";
+import { ImapConnector } from "./connectors/imap.ts";
+import type { Connector } from "./connectors/types.ts";
 import { KnowledgeStore } from "./knowledge/store.ts";
 import { startObsServer } from "./obs/server.ts";
 import { HeadlessModelClassifier, RuleClassifier } from "./routing/classify.ts";
@@ -140,9 +144,56 @@ switch (cmd) {
 			console.error(`holdco: executing via ${host.config.get("worker-harness") || "claude-code"} harness (--no-exec to disable)`);
 		}
 
+		// ── intake connectors (the way IN — mirrors the harness seam on the way out) ──
+		// Discord: --discord-channels id1,id2 + env DISCORD_BOT_TOKEN.
+		// IMAP:    --imap-host H [--imap-port N] [--imap-mailbox M] + env IMAP_USER/IMAP_PASSWORD.
+		// Every drafted card lands at Draft with provenance {surfaced_by, source_type,
+		// source_ref, drafter} — a human promotes it into the funnel.
+		const stops: Array<() => Promise<void>> = [];
+		{
+			const log = (event: string, data: Record<string, unknown>) => host.log.entry("card-engine-log", { event, ...data, ts: new Date().toISOString() });
+			const startConnector = (c: Connector) => {
+				const drafter = new CardDrafter({ cardsDir: engine.cardsDir, drafter: `connector:${c.name}`, log });
+				c.start((ev) => void drafter.draft(ev))
+					.then((stop) => {
+						stops.push(stop);
+						console.error(`holdco: intake connector "${c.name}" watching`);
+					})
+					.catch((err) => host.notify(`connector ${c.name} failed to start: ${String(err)}`, "error"));
+			};
+			const discordChannels = (host.config.get("discord-channels") || "").split(",").map((s) => s.trim()).filter(Boolean);
+			if (discordChannels.length && process.env.DISCORD_BOT_TOKEN) {
+				startConnector(
+					new DiscordConnector({
+						botToken: process.env.DISCORD_BOT_TOKEN,
+						channelIds: discordChannels,
+						apiBase: host.config.get("discord-api-base") || undefined,
+						pollMs: host.config.get("discord-poll-ms") ? Number(host.config.get("discord-poll-ms")) : undefined,
+						log,
+					}),
+				);
+			}
+			const imapHost = host.config.get("imap-host");
+			if (imapHost && process.env.IMAP_USER && process.env.IMAP_PASSWORD) {
+				startConnector(
+					new ImapConnector({
+						host: imapHost,
+						port: host.config.get("imap-port") ? Number(host.config.get("imap-port")) : undefined,
+						user: process.env.IMAP_USER,
+						password: process.env.IMAP_PASSWORD,
+						mailbox: host.config.get("imap-mailbox") || undefined,
+						pollMs: host.config.get("imap-poll-ms") ? Number(host.config.get("imap-poll-ms")) : undefined,
+						insecurePlaintext: host.config.get("imap-insecure-plaintext") === "true",
+						log,
+					}),
+				);
+			}
+		}
+
 		console.error(`holdco: serving ${engine.cardsDir} (ctrl-c to stop)`);
 		const bye = () => {
 			void (async () => {
+				for (const stop of stops.splice(0)) await stop().catch(() => {});
 				if (orchestrator) await orchestrator.stop();
 				engine.stop();
 				process.exit(0);
