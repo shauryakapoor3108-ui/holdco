@@ -1,0 +1,14 @@
+{
+	"type": "card",
+	"id": "demo-ops.cleanup-01",
+	"status": "Filed (note)",
+	"card_type": "note",
+	"halt": "true",
+	"depends_on": ["demo-widget-audit"],
+	"cost_total": "0.42",
+	"tokens": 1234,
+	"duration_s": 87,
+	"tool_calls_so_far": "9",
+	"outcome": "demo note filed",
+	"custom_human_field": "cards are extensible, so this is fine"
+}

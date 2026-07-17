@@ -1,0 +1,5 @@
+{
+	"version": 2,
+	"writeScopes": ["/tmp/demo-widget-audit/worktree"],
+	"denyCommands": []
+}

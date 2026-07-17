@@ -1,0 +1,18 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Filing artifact frontmatter",
+	"description": "Frontmatter of a filed knowledge artifact (knowledge/decisions/, knowledge/refs/, domains/<domain>/refs/ — see knowledge/FILING.md). Produced by workers when they file durable output; consumed by the knowledge layer and humans browsing the store. Extensible: additional keys allowed. Version 1.",
+	"version": 1,
+	"type": "object",
+	"required": ["title", "kind", "created_at"],
+	"additionalProperties": true,
+	"properties": {
+		"title": { "type": "string", "minLength": 1 },
+		"kind": { "enum": ["decision", "reference", "analysis", "playbook", "note"] },
+		"created_at": { "type": "string" },
+		"domain": { "type": "string" },
+		"card": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+		"summary": { "type": "string" },
+		"version": { "type": "integer" }
+	}
+}

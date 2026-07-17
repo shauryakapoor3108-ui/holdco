@@ -1,0 +1,7 @@
+{
+	"type": "card",
+	"id": "demo-widget-audit",
+	"status": "Banana",
+	"card_type": "ops",
+	"domain": "demo"
+}

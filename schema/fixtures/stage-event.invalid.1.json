@@ -1,0 +1,10 @@
+{
+	"run_id": "run-demo-003",
+	"card_id": "demo-widget-audit",
+	"node_id": "verify",
+	"node_type": "deterministic",
+	"stage": "verify",
+	"status": "passed",
+	"ts": "2026-07-17T09:15:00Z",
+	"smuggled_extra_field": "telemetry is a strict contract — additionalProperties false"
+}

@@ -1,0 +1,10 @@
+{
+	"run_id": "run-demo-002",
+	"card_id": "demo-widget-audit",
+	"node_id": "human-approve",
+	"node_type": "gate",
+	"stage": "approve",
+	"harness": null,
+	"status": "awaiting_human",
+	"ts": "2026-07-17T09:10:00Z"
+}

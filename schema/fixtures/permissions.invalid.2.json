@@ -1,0 +1,5 @@
+{
+	"version": 1,
+	"writeScopes": [""],
+	"denyCommands": ["\\bgit\\s+push\\b"]
+}

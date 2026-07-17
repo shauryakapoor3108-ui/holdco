@@ -1,0 +1,9 @@
+{
+	"title": "Demo widget audit findings",
+	"kind": "analysis",
+	"created_at": "2026-07-17T10:00:00Z",
+	"domain": "demo",
+	"card": "demo-widget-audit",
+	"summary": "Synthetic demo artifact: what the widget audit found.",
+	"version": 1
+}

@@ -1,0 +1,5 @@
+{
+	"version": 1,
+	"writeScopes": ["{worktree}", "{scopedDir}"],
+	"denyCommands": ["\\bgit\\s+push\\b", "\\bgit\\s+commit\\b"]
+}

@@ -1,0 +1,57 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Card frontmatter",
+	"description": "Frontmatter of a holdco card (`type: card` markdown note). Produced by humans and by the card engine (src/engine/frontmatter.ts writes engine-owned keys); consumed by the reconciler/state machine (src/engine), the worker pool, and the Base Kanban view. Cards are human-extensible, so unknown keys are allowed. Version 1.",
+	"version": 1,
+	"type": "object",
+	"required": ["type", "id", "status"],
+	"additionalProperties": true,
+	"properties": {
+		"type": { "const": "card" },
+		"id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+		"title": { "type": "string" },
+		"status": {
+			"enum": [
+				"Draft",
+				"Held",
+				"Intake",
+				"Needs Approval",
+				"Queued",
+				"Executing",
+				"Needs Review",
+				"Filed",
+				"Archived",
+				"Quarantine",
+				"Filed (note)",
+				"Filed (intake)"
+			]
+		},
+		"card_type": {
+			"enum": ["strategy", "ops", "content", "research", "maintenance", "note", "intake"]
+		},
+		"domain": { "type": "string" },
+		"worker": { "type": "string" },
+		"model": { "type": "string" },
+		"halt": {
+			"anyOf": [{ "type": "boolean" }, { "type": "string", "enum": ["true", "false"] }]
+		},
+		"depends_on": {
+			"type": "array",
+			"items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" }
+		},
+		"created_at": { "type": "string" },
+		"cost_total": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+		"tokens": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+		"duration_s": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+		"outcome": { "type": "string" },
+		"diff_status": { "type": "string" },
+		"harness": { "type": "string" },
+		"review_flag": { "type": "string" },
+		"interrupted": { "type": "string" },
+		"telemetry": { "type": "string" },
+		"reload_required": { "type": "string" },
+		"last_checkpoint": { "type": "string" },
+		"tool_calls_so_far": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+		"brief": { "type": "string" }
+	}
+}

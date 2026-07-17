@@ -1,0 +1,12 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Constraints frontmatter",
+	"description": "Frontmatter of knowledge/constraints.md, the single-source constraints file. Seeded by KnowledgeStore.ensure() (src/knowledge/store.ts, stamped with KNOWLEDGE_SCHEMA_VERSION); consumed by harness adapters that render the body into every worker's context. Human-extensible frontmatter. Version 1.",
+	"version": 1,
+	"type": "object",
+	"required": ["version"],
+	"additionalProperties": true,
+	"properties": {
+		"version": { "type": "integer", "minimum": 1 }
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"run_id": "run-demo-004",
+	"card_id": "demo-widget-audit",
+	"node_id": "execute",
+	"node_type": "agent",
+	"stage": "execute",
+	"status": "progress",
+	"usage": {
+		"tokens_in": 10,
+		"cost_usd": -0.5
+	},
+	"ts": "2026-07-17T09:20:00Z"
+}

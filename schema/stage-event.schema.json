@@ -1,0 +1,33 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Stage event",
+	"description": "One deck telemetry event (deck spec §4). Produced by the engine/worker pool as a run moves through pipeline nodes; consumed by the deck UI and telemetry sinks. Strict contract: no additional properties. Version 1.",
+	"version": 1,
+	"type": "object",
+	"required": ["run_id", "card_id", "node_id", "node_type", "stage", "status", "ts"],
+	"additionalProperties": false,
+	"properties": {
+		"run_id": { "type": "string" },
+		"card_id": { "type": "string" },
+		"node_id": { "type": "string" },
+		"node_type": { "enum": ["agent", "deterministic", "gate"] },
+		"stage": { "type": "string" },
+		"harness": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+		"model": { "type": "string" },
+		"tier": { "enum": ["workhorse", "frontier"] },
+		"status": { "enum": ["started", "progress", "passed", "failed", "awaiting_human"] },
+		"payload_ref": { "type": "string" },
+		"prompt_ref": { "type": "string" },
+		"usage": {
+			"type": "object",
+			"required": ["tokens_in", "tokens_out", "cost_usd"],
+			"additionalProperties": false,
+			"properties": {
+				"tokens_in": { "type": "integer", "minimum": 0 },
+				"tokens_out": { "type": "integer", "minimum": 0 },
+				"cost_usd": { "type": "number", "minimum": 0 }
+			}
+		},
+		"ts": { "type": "string" }
+	}
+}
