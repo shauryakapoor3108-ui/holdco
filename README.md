@@ -2,15 +2,29 @@
 
 **Run coding agents as governed workers. Real git isolation, human-by-exception gates, a board that's just markdown files.**
 
+![holdco deck: attention rail with approval gates above, markdown kanban board below](docs/img/deck-board.png)
+
 holdco drives the coding-agent CLIs you already use — Claude Code, Codex, Pi — as workers on a plain-markdown kanban board. Every task runs in its own git worktree, a human approves only where it matters, and the engine can never skip a gate. Plain Node, zero dependencies.
 
-> Early public release (v0). Extracted from a system I run daily to operate my own projects. The engine, seams, and conformance suites below are implemented and tested; the deck UI ships separately and is still in flight.
+> Early public release (v0). Extracted from a system I run daily to operate my own projects. The engine, seams, and conformance suites below are implemented and tested; the deck UI shown here ships as a separate app.
 
 ## Who this is for
 
 You already drive coding agents from the terminal and want a governance layer around them — not another framework to marry. holdco gives you git-worktree isolation so a worker can't touch your live tree, human gates you actually control (illegal moves auto-revert), cost-aware model routing, intake from email or Discord, and a board you can read with `ls`.
 
 It is **not** an in-memory agent framework. It orchestrates the CLIs you already run, on a real filesystem, with git as the substrate — and it doesn't lock you to a model or a vendor. If that's the wrong shape for you, [LangGraph](https://github.com/langchain-ai/langgraph), [CrewAI](https://github.com/crewAIInc/crewAI), and the vendor agent SDKs orchestrate at the API level instead.
+
+## What it looks like running
+
+Every screenshot below is the deck on a live run, not a mockup.
+
+**Today.** What is executing, what is waiting on you, what failed, and what it has cost so far. Spend is tracked per card, so the number at the top is real money, not an estimate.
+
+![Mission overview: executing now, awaiting you, failed, and spend today](docs/img/deck-today.png)
+
+**Flow.** Each card walks a guarded state machine. Plan and verify complete with their own per-stage cost, execution stays pending until a human clears the approval gate, and an illegal transition auto-reverts. This is what human-by-exception actually looks like in practice.
+
+![Flow map: plan and verify complete, approval gate held, execute pending](docs/img/deck-flow.png)
 
 ## The thesis
 
