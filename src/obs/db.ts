@@ -1,11 +1,11 @@
-// db.ts — node:sqlite storage for StageEvent telemetry.
+// db.ts - node:sqlite storage for StageEvent telemetry.
 //
 // Node port of the source observability server's bun:sqlite layer, reshaped for
 // the StageEvent contract: ONE flat stage_events table (every schema field a
 // column, usage flattened to usage_* columns) plus two server-side additions:
-//   • seq — server-assigned monotonic INTEGER PRIMARY KEY AUTOINCREMENT; the
+//   • seq - server-assigned monotonic INTEGER PRIMARY KEY AUTOINCREMENT; the
 //     resync cursor for consumers (ascending reads, "since seq N").
-//   • a dedupe UNIQUE key on (run_id, node_id, status, ts) — re-POSTing the
+//   • a dedupe UNIQUE key on (run_id, node_id, status, ts) - re-POSTing the
 //     same event is a no-op (INSERT OR IGNORE), mirroring the source server's
 //     idempotent event_id inserts.
 // The legacy per-session rollup table is replaced by a per-RUN rollup query

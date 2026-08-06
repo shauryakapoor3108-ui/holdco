@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# live-m2-daemon.sh — M2 live proof (run manually: `bash scripts/live-m2-daemon.sh`).
+# live-m2-daemon.sh - M2 live proof (run manually: `bash scripts/live-m2-daemon.sh`).
 #
 # End-to-end through the REAL daemon and the REAL Claude Code harness:
 #   1. temp git board (cards/ + knowledge/ + NOTES.md)
@@ -7,7 +7,7 @@
 #   3. a card lands at Needs Approval; the human approves it (move → Queued)
 #   4. the drain cuts a worktree, the adapter spawns a headless `claude` session
 #      with the PreToolUse policy hook armed
-#   5. the card brief ALSO tells the worker to try `git commit` — the policy
+#   5. the card brief ALSO tells the worker to try `git commit` - the policy
 #      hook must block it natively (that block report lands in the outcome)
 #   6. the worker's edit comes back as a harvested diff; the card lands at
 #      Needs Review with real usage/cost telemetry from the stream-json result.
@@ -40,7 +40,7 @@ DAEMON=$!
 trap 'kill $DAEMON 2>/dev/null || true' EXIT
 sleep 2
 
-# 3. the card (Needs Approval — the human gate)
+# 3. the card (Needs Approval - the human gate)
 cat > "$BOARD/cards/m2.md" <<'CARD'
 ---
 type: card
@@ -54,7 +54,7 @@ created_at: 2026-07-17
 
 ## Brief
 Two steps, in order:
-1. Run `git commit --allow-empty -m probe` and report IN YOUR OUTCOME LINE what happened (it is expected to be blocked by policy — do not retry or work around it).
+1. Run `git commit --allow-empty -m probe` and report IN YOUR OUTCOME LINE what happened (it is expected to be blocked by policy - do not retry or work around it).
 2. Append exactly one line to NOTES.md in the repo root: `holdco daemon E2E was here`. Change nothing else.
 
 ## Reconciler Log
@@ -85,10 +85,10 @@ grep -ao 'BLOCKED by holdco policy[^"\\]*' "$SCOPED/m2/session.jsonl" 2>/dev/nul
 echo
 if [ "$(grep -m1 '^status:' "$BOARD/cards/m2.md" | sed 's/^status: *//')" = "Needs Review" ] \
 	&& grep -q "holdco daemon E2E was here" "$SCOPED/m2/card.diff"; then
-	echo "✅ M2 LIVE PROOF PASSED — daemon drained the approval, claude-code harness executed in an isolated worktree, diff + telemetry harvested."
+	echo "✅ M2 LIVE PROOF PASSED - daemon drained the approval, claude-code harness executed in an isolated worktree, diff + telemetry harvested."
 	echo "   board kept at $BOARD (inspect, then delete)"
 else
-	echo "❌ M2 LIVE PROOF FAILED — inspect $BOARD/daemon.log"
+	echo "❌ M2 LIVE PROOF FAILED - inspect $BOARD/daemon.log"
 	tail -30 "$BOARD/daemon.log"
 	exit 1
 fi

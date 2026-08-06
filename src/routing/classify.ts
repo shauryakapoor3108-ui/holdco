@@ -1,16 +1,16 @@
-// classify.ts — the triage stage: a CHEAP model (or deterministic rules) reads a
+// classify.ts - the triage stage: a CHEAP model (or deterministic rules) reads a
 // card and answers three questions before any expensive worker spawns:
-//   delegation — can AI do this unattended, or does a human hold judgment?
-//   complexity — deterministic/mapped work, or exploratory?
-//   outcome    — what shape is the deliverable (code diff / filed artifact / answer)?
+//   delegation - can AI do this unattended, or does a human hold judgment?
+//   complexity - deterministic/mapped work, or exploratory?
+//   outcome    - what shape is the deliverable (code diff / filed artifact / answer)?
 // plus the routing class the table keys on (chore / research / feature / plan /
 // review). The decision is WRITTEN ONTO THE CARD (class / tier / model /
 // classified_by) so the routing is inspectable provenance, not hidden state.
 //
 // Two implementations:
-//   RuleClassifier  — deterministic keyword + card_type heuristics. Zero cost,
+//   RuleClassifier  - deterministic keyword + card_type heuristics. Zero cost,
 //                     zero network; the fallback and the test workhorse.
-//   HeadlessModelClassifier — one `claude -p --model <cheap>` call returning
+//   HeadlessModelClassifier - one `claude -p --model <cheap>` call returning
 //                     strict JSON; ANY failure (spawn, timeout, parse, invalid
 //                     enum) falls back to the rules. Classification must never
 //                     block the board.
@@ -25,7 +25,7 @@ export interface Classification {
 	delegation: "auto" | "human";
 	complexity: "deterministic" | "exploratory";
 	outcome: "code" | "artifact" | "answer";
-	/** One line of why — lands in the log, keeps the decision auditable. */
+	/** One line of why - lands in the log, keeps the decision auditable. */
 	rationale: string;
 	/** Who decided: "rules" or the classifier model id. */
 	via: string;
@@ -68,7 +68,7 @@ export class RuleClassifier implements Classifier {
 			rationale = input.cardType === "maintenance" ? "maintenance card_type" : "mechanical-change language";
 		} else {
 			cls = "feature";
-			rationale = "no chore/plan/review/research signals — substantive change assumed";
+			rationale = "no chore/plan/review/research signals - substantive change assumed";
 		}
 		const isCode = input.cardType === "ops" || input.cardType === "maintenance";
 		return {
@@ -134,7 +134,7 @@ export class HeadlessModelClassifier implements Classifier {
 			/* fall through to rules */
 		}
 		const ruled = await this.fallback.classify(input);
-		return { ...ruled, rationale: `${ruled.rationale} (model classifier unavailable — rules fallback)` };
+		return { ...ruled, rationale: `${ruled.rationale} (model classifier unavailable - rules fallback)` };
 	}
 
 	/** One headless print-mode call on the cheap model, no tools, JSON out. */

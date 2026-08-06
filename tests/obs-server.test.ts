@@ -1,4 +1,4 @@
-// obs-server.test.ts — the Node observability server: auth wall, schema-gated
+// obs-server.test.ts - the Node observability server: auth wall, schema-gated
 // ingest (single + array + rejects + dedupe), filtered reads, per-run rollups,
 // and live SSE fan-out. Boots on an EPHEMERAL port (port: 0) against a temp
 // SQLite file. Run via `node tests/obs-server.test.ts`.

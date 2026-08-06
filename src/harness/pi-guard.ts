@@ -1,19 +1,19 @@
-// pi-guard.ts — holdco's Pi-native safety-policy enforcement: a Pi EXTENSION loaded
+// pi-guard.ts - holdco's Pi-native safety-policy enforcement: a Pi EXTENSION loaded
 // into the WORKER pi process via `-e <this file>`. It is the Pi "enforcement shell"
-// around the shared pure evaluator in policy.ts (one evaluator, N shells — the
+// around the shared pure evaluator in policy.ts (one evaluator, N shells - the
 // Claude Code adapter wraps the same evaluator in a PreToolUse hook process).
 //
 // Zero-dependency discipline: this file imports NO Pi types (the ExtensionAPI is
-// taken as `any`) and no third-party packages — only node builtins and holdco's own
-// policy module — so the worker can load it from any checkout without an install.
+// taken as `any`) and no third-party packages - only node builtins and holdco's own
+// policy module - so the worker can load it from any checkout without an install.
 //
 // Wiring (spec'd by the PiHarness launch command):
 //   • HOLDCO_POLICY names the per-card policy JSON (a serialized SafetyPolicy) the
 //     adapter wrote into the card's scoped dir at spawn.
-//   • env absent  → notify "no policy — guard inert" and DO NOT hook tool_call
+//   • env absent  → notify "no policy - guard inert" and DO NOT hook tool_call
 //     (a bare `pi -e pi-guard.ts` outside the engine stays unrestricted).
 //   • env set but unreadable/malformed → FAIL CLOSED: every write/edit/bash tool
-//     call is blocked with the load error as the reason (reads still pass — they
+//     call is blocked with the load error as the reason (reads still pass - they
 //     are never policy-relevant, and blocking them would blind the worker).
 //   • on block: append a `policy-guard-log` entry and return the block with the
 //     BLOCK_SUFFIX discipline so the worker reports instead of route-around retries.
@@ -35,7 +35,7 @@ function toToolAction(event: any): ToolAction | null {
 	return null;
 }
 
-/** The pure event→verdict mapping (exported for unit tests — no pi, no fs, no env).
+/** The pure event→verdict mapping (exported for unit tests - no pi, no fs, no env).
  *  Exactly what the hooked handler runs once the policy is loaded. */
 export function evaluatePiToolCall(policy: SafetyPolicy, event: any, cwd: string): PolicyVerdict {
 	const action = toToolAction(event);
@@ -44,7 +44,7 @@ export function evaluatePiToolCall(policy: SafetyPolicy, event: any, cwd: string
 }
 
 /** Parse + shape-check the policy JSON. Throws on any malformation (the caller
- *  turns a throw into the fail-closed path — a half-parsed policy must not run). */
+ *  turns a throw into the fail-closed path - a half-parsed policy must not run). */
 function parsePolicy(raw: string): SafetyPolicy {
 	const data = JSON.parse(raw);
 	if (!data || typeof data !== "object" || !Array.isArray(data.writeScopes) || !Array.isArray(data.denyCommands)) {
@@ -68,9 +68,9 @@ export default function piGuard(pi: any): void {
 	pi.on("session_start", async (_event: any, ctx: any) => {
 		const policyPath = process.env.HOLDCO_POLICY ?? "";
 		if (!policyPath) {
-			// Not launched by the engine — stay inert rather than inventing a policy.
+			// Not launched by the engine - stay inert rather than inventing a policy.
 			try {
-				ctx?.ui?.notify?.("holdco policy-guard: no policy — guard inert (HOLDCO_POLICY unset)");
+				ctx?.ui?.notify?.("holdco policy-guard: no policy - guard inert (HOLDCO_POLICY unset)");
 			} catch {
 				/* notify is best-effort */
 			}
@@ -86,12 +86,12 @@ export default function piGuard(pi: any): void {
 				/* best-effort */
 			}
 		} catch (err) {
-			// FAIL CLOSED: a policy was mandated but cannot be read — write/bash tools
+			// FAIL CLOSED: a policy was mandated but cannot be read - write/bash tools
 			// are blocked with this reason until a human fixes the launch.
 			policy = null;
 			loadError = `policy file unreadable (${policyPath}): ${err instanceof Error ? err.message : String(err)}`;
 			try {
-				ctx?.ui?.notify?.(`holdco policy-guard: ${loadError} — failing CLOSED for write/edit/bash`);
+				ctx?.ui?.notify?.(`holdco policy-guard: ${loadError} - failing CLOSED for write/edit/bash`);
 			} catch {
 				/* best-effort */
 			}

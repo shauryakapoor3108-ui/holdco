@@ -1,4 +1,4 @@
-// telemetry.test.ts — StageEvent emission at the harness boundary. Proves:
+// telemetry.test.ts - StageEvent emission at the harness boundary. Proves:
 //   • the pool's happy path emits started → passed(+usage/payload_ref) →
 //     harvest → review-gate, every event valid against the wire schema;
 //   • watchdog escalation emits failed → review-gate;
@@ -198,7 +198,7 @@ function injectWorktree(wsMgr: WorkspaceManager, root: string, scopedBase: strin
 	ok(harvest.node_id === `${started.run_id}:harvest` && harvest.payload_ref === passed.payload_ref, "harvest node carries the diff payload_ref");
 	ok(
 		gate.node_type === "gate" && gate.stage === "human-gate:review" && gate.status === "awaiting_human" && gate.harness === null,
-		"4th: review gate awaiting_human (pool emits it — no landing event exists for Needs Review)",
+		"4th: review gate awaiting_human (pool emits it - no landing event exists for Needs Review)",
 	);
 	ok(evs.every((e) => e.run_id === started.run_id), "all four events share the run_id");
 	ok(evs.every((e) => typeof e.ts === "string" && !Number.isNaN(Date.parse(e.ts))), "every event carries an ISO ts");

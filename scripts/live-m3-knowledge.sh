@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# live-m3-knowledge.sh — M3 live proof (run manually: `bash scripts/live-m3-knowledge.sh`).
+# live-m3-knowledge.sh - M3 live proof (run manually: `bash scripts/live-m3-knowledge.sh`).
 #
 # Proves the unified knowledge layer end-to-end with a REAL worker:
 #   1. the board's knowledge/constraints.md carries a unique marker token
 #   2. `holdco serve` renders it through the Claude Code adapter NATIVELY
-#      (system-prompt injection — never a file in the worktree)
-#   3. the card asks the worker to report any special token in its constraints —
+#      (system-prompt injection - never a file in the worktree)
+#   3. the card asks the worker to report any special token in its constraints -
 #      the marker can reach it through NO channel except the knowledge layer
 #   4. the per-card message log (knowledge/messages/<id>.jsonl) records the
 #      engine's dispatch + outcome entries for the run.
@@ -81,10 +81,10 @@ echo
 if grep -q "token: $TOKEN" "$SCOPED/m3/card.diff" 2>/dev/null \
 	&& grep -q "$TOKEN" "$BOARD/cards/m3.md" \
 	&& grep -q '"kind":"outcome"' "$BOARD/knowledge/messages/m3.jsonl"; then
-	echo "✅ M3 LIVE PROOF PASSED — single-source constraints reached the real worker via native rendering; message log captured the run."
+	echo "✅ M3 LIVE PROOF PASSED - single-source constraints reached the real worker via native rendering; message log captured the run."
 	echo "   board kept at $BOARD (inspect, then delete)"
 else
-	echo "❌ M3 LIVE PROOF FAILED — inspect $BOARD/daemon.log and $SCOPED/m3/"
+	echo "❌ M3 LIVE PROOF FAILED - inspect $BOARD/daemon.log and $SCOPED/m3/"
 	tail -20 "$BOARD/daemon.log"
 	exit 1
 fi

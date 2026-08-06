@@ -1,4 +1,4 @@
-// herdr-adapter.ts — the ONE polling transport for every `herdr` call the owner makes.
+// herdr-adapter.ts - the ONE polling transport for every `herdr` call the owner makes.
 //
 // Port of v3 `extensions/lib/herdr-client.ts` (the one-adapter principle): a single
 // typed wrapper around `execFile("herdr", …)` for the D2 worker lifecycle. Two hard
@@ -7,7 +7,7 @@
 //      must NOT crash the owner's 2s sweep; the caller inspects `.ok` and the
 //      watchdog/reaper handle a genuinely-dead worker. (v3 `waitForStatus` returns
 //      "timeout" rather than throwing.)
-//   2. **Only the commands in `tasks/_herdr-cli-contract.md`** — workspace
+//   2. **Only the commands in `tasks/_herdr-cli-contract.md`** - workspace
 //      create/list/close, pane run/send-text/send-keys/read/list/get. No invented
 //      flags or subcommands.
 //
@@ -15,7 +15,7 @@
 // execFile (no real herdr, no real panes) and asserts the JSON parsing + the
 // timeout-returns-a-value contract.
 //
-// JSON shapes (captured live this session from herdr 0.5.10 — F3 grounding):
+// JSON shapes (captured live this session from herdr 0.5.10 - F3 grounding):
 //   workspace create → result.workspace.workspace_id + result.root_pane.pane_id
 //   workspace list   → result.workspaces[] (each {workspace_id, label, …})
 //   pane list        → result.panes[] (each {pane_id, agent_status, …})
@@ -36,11 +36,11 @@ export type ExecFn = (args: string[], timeoutMs: number) => Promise<ExecResult>;
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-/** The real transport: spawn `herdr <args>`. Never throws — a failure resolves `{ok:false}`. */
+/** The real transport: spawn `herdr <args>`. Never throws - a failure resolves `{ok:false}`. */
 const realExec: ExecFn = (args, timeoutMs) =>
 	new Promise<ExecResult>((resolve) => {
 		execFile("herdr", args, { encoding: "utf8", timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
-			// HERDR_DEBUG=1: surface the swallowed failure detail (loud-failure doctrine) — a bare
+			// HERDR_DEBUG=1: surface the swallowed failure detail (loud-failure doctrine) - a bare
 			// "workspace-failed" at the pane-runner told us nothing about WHY (live 2026-07-14).
 			if (err && process.env.HERDR_DEBUG === "1") {
 				console.error(`[herdr-adapter] FAIL herdr ${args.join(" ")}\n  err=${String((err as any)?.code ?? err)} stderr=${String(stderr ?? "").slice(0, 300)} stdout=${String(stdout ?? "").slice(0, 300)}`);
@@ -93,8 +93,8 @@ export class HerdrAdapter {
 	/**
 	 * Two construction forms, both supported so the config seam (session) coexists with the
 	 * long-standing test seam (injectable exec):
-	 *   • `new HerdrAdapter()` / `new HerdrAdapter({ session, timeoutMs })` — production.
-	 *   • `new HerdrAdapter(fakeExec, timeoutMs)` — the self-tests' FAKE execFile transport.
+	 *   • `new HerdrAdapter()` / `new HerdrAdapter({ session, timeoutMs })` - production.
+	 *   • `new HerdrAdapter(fakeExec, timeoutMs)` - the self-tests' FAKE execFile transport.
 	 * The first positional arg disambiguates: a function ⇒ the exec transport; an object ⇒ opts.
 	 */
 	constructor(execOrOpts?: ExecFn | HerdrAdapterOpts, timeoutMs?: number) {
@@ -134,7 +134,7 @@ export class HerdrAdapter {
 		const args = ["workspace", "create", "--label", label, "--no-focus"];
 		if (cwd) args.push("--cwd", cwd);
 		const data = await this.json(args);
-		// F3: assert the keys on first run — a shape drift must be loud, not a silent null spawn.
+		// F3: assert the keys on first run - a shape drift must be loud, not a silent null spawn.
 		const workspaceId = data?.result?.workspace?.workspace_id ?? data?.result?.root_pane?.workspace_id ?? null;
 		const paneId = data?.result?.root_pane?.pane_id ?? null;
 		return { ok: !!(workspaceId && paneId), workspaceId, paneId };
@@ -261,11 +261,11 @@ export class HerdrAdapter {
 	/**
 	 * `herdr wait output <pane> --match <text> --source <source> --timeout <ms>` (level-scan): BLOCK
 	 * until `match` appears in the pane's output (exit 0 → true) or the timeout lapses (→ false). This
-	 * is the P6 claude-worker completion signal — the pi path polls the sweep for its regex sentinel;
+	 * is the P6 claude-worker completion signal - the pi path polls the sweep for its regex sentinel;
 	 * a claude worker's LAST action echoes `FLEET_DONE_<cardId>` and this call catches it.
 	 *
 	 * The per-call execFile timeout is set ABOVE herdr's own `--timeout` so herdr's wait deadline fires
-	 * FIRST (a clean false), never the transport kill. A transport failure also resolves false — both
+	 * FIRST (a clean false), never the transport kill. A transport failure also resolves false - both
 	 * routes escalate through the same watchdog path (the caller cannot tell timeout from herdr-down,
 	 * and for v1 need not: either way the worker did not signal done in time).
 	 */

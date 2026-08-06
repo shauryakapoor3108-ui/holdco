@@ -1,9 +1,9 @@
-// executor.test.ts — self-test for the Phase 4 executor (EngineHost port).
+// executor.test.ts - self-test for the Phase 4 executor (EngineHost port).
 // Run via `node tests/executor.test.ts`.
 //
 // D1 REWORK: the dispatch trigger moved off the detected `→ Executing` edge (humans no
-// longer drag straight to Executing — that edge is now ILLEGAL). Execution now starts
-// in the engine's `queue:next` handler, which — after its three-check gate — writes
+// longer drag straight to Executing - that edge is now ILLEGAL). Execution now starts
+// in the engine's `queue:next` handler, which - after its three-check gate - writes
 // the loop-suppressed `Queued → Executing` engine edge and calls `executor.dispatch`.
 // These cases are restructured to that new flow via `drainDispatch` (a faithful stand-in
 // for the post-gate handler): the human approval edge is now `Needs Approval → Queued`,
@@ -185,7 +185,7 @@ console.log("approval detection (Needs Approval → Queued) + drain dispatch + s
 	ok(!/no new artifact/.test(after), "filed artifact verified (no miss warning)");
 	ok(idleEmits(h) === idleBefore + 1, "exec:idle emitted on completion (the drain's latency hint)");
 
-	console.log("CRITICAL loop-suppression — no auto-revert of the engine edge:");
+	console.log("CRITICAL loop-suppression - no auto-revert of the engine edge:");
 	ok(r.snapshot.get("C1") === "Needs Review", "snapshot synced to Needs Review by the executor");
 	const ev2 = r.reconcile("sweep");
 	ok(!ev2.some((e) => e.event === "ILLEGAL_REVERT"), "completion edge is NOT auto-reverted");
@@ -208,7 +208,7 @@ console.log("filing miss is recorded in outcome:");
 	ok(r.snapshot.get("C2") === "Needs Review", "still lands in Needs Review even on filing miss");
 }
 
-console.log("ABORTED agent_end — annotate + escalate (Tier-2 escalation mechanism 1):");
+console.log("ABORTED agent_end - annotate + escalate (Tier-2 escalation mechanism 1):");
 {
 	const c = card("CA.md", mkCard("CA", "Needs Approval", "- a run that gets interrupted"));
 	const r = new Reconciler(cardsDir);
@@ -232,7 +232,7 @@ console.log("ABORTED agent_end — annotate + escalate (Tier-2 escalation mechan
 	ok(r.snapshot.get("CA") === "Needs Review" && !r.reconcile("sweep").some((e) => e.event === "ILLEGAL_REVERT"), "aborted completion is loop-suppressed (no revert)");
 }
 
-console.log("no-brief path — empty instruction never runs:");
+console.log("no-brief path - empty instruction never runs:");
 {
 	// a card whose Intent/Restatement/brief are all empty
 	const empty = `---
@@ -292,7 +292,7 @@ console.log("idle-defer + empty-slot correlation:");
 	ok(idleEmits(h) === idleBefore, "no exec:idle emitted when agent_end has no slot (not our run)");
 }
 
-console.log("busy guard — a second dispatch while busy is refused:");
+console.log("busy guard - a second dispatch while busy is refused:");
 {
 	const c1 = card("C5.md", mkCard("C5", "Queued", "- first"));
 	const c2 = card("C6.md", mkCard("C6", "Queued", "- second"));
@@ -306,7 +306,7 @@ console.log("busy guard — a second dispatch while busy is refused:");
 	ok(h.sent.length === 1, "second dispatch refused while busy (single slot)");
 }
 
-console.log("circuit breaker — a card dispatched too many times in a session is HARD-STOPPED:");
+console.log("circuit breaker - a card dispatched too many times in a session is HARD-STOPPED:");
 {
 	const c = card("CB.md", mkCard("CB", "Queued", "- a card that keeps getting re-dispatched"));
 	const r = new Reconciler(cardsDir);
@@ -319,7 +319,7 @@ console.log("circuit breaker — a card dispatched too many times in a session i
 		ok(ex.busy, `dispatch ${i} runs (within the cap)`);
 		ex.onAgentEnd({ messages: [] }, endCtx()); // clears the slot, count persists
 	}
-	// the 4th trips the breaker — no run, hard stop.
+	// the 4th trips the breaker - no run, hard stop.
 	const sentBefore = h.sent.length;
 	drainDispatch(r, ex, "CB", c, dispatchCtx(true));
 	ok(!ex.busy, "4th dispatch does NOT start a run (circuit breaker tripped)");
@@ -334,11 +334,11 @@ console.log("circuit breaker — a card dispatched too many times in a session i
 	setStatus(c, "Queued");
 	r.snapshot.set("CB", "Queued");
 	drainDispatch(r, ex, "CB", c, dispatchCtx(true));
-	ok(ex.busy, "after clearDispatchCount (/unhalt), the card dispatches again — counter reset");
+	ok(ex.busy, "after clearDispatchCount (/unhalt), the card dispatches again - counter reset");
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// D1 role-aware completion contract — CODE vs ARTIFACT branching on card_type
+// D1 role-aware completion contract - CODE vs ARTIFACT branching on card_type
 // ══════════════════════════════════════════════════════════════════════════════
 {
 	const rRoot = fs.mkdtempSync(join(os.tmpdir(), "executor-role-ct-ct-ct-"));
@@ -357,7 +357,7 @@ console.log("circuit breaker — a card dispatched too many times in a session i
 	const roleCard = (status: string, restatement: string, cardType: string) =>
 		`---\ntype: card\nid: RC\ntitle: "Role card"\nstatus: ${status}\ncard_type: ${cardType}\ndomain: dds\ncreated_at: 2026-06-13\nbrief: "${restatement}"\ncost_total: null\noutcome: ""\n---\n\n## Intent\ndo thing\n\n## Restatement\n${restatement}\n\n## Reconciler Log\n`;
 
-	console.log("D1 route-aware — CODE contract (ops card) vs ARTIFACT (research):");
+	console.log("D1 route-aware - CODE contract (ops card) vs ARTIFACT (research):");
 	const cardsDir2 = rCards;
 	const card2 = (name: string, body: string) => {
 		const p = join(cardsDir2, name);
@@ -429,14 +429,14 @@ console.log("circuit breaker — a card dispatched too many times in a session i
 		drainDispatch(rC, ex, "RC_NODIFF", c, dispatchCtx(true, rRoot));
 		ex.onMessageEnd(msgEnd("OUTCOME: nothing changed"));
 		// Clean the working tree (the card files themselves are untracked) so the
-		// "no diff produced" check is meaningful — the run below changes nothing.
+		// "no diff produced" check is meaningful - the run below changes nothing.
 		try {
 			execSync("git add -A && git -c user.name=test -c user.email=test@test.com commit -m 'pre-nodiff'", { cwd: rRoot, timeout: 5000 });
 		} catch { /* git may not be available; the git-unavailable branch below covers it */ }
 		ex.onAgentEnd({ messages: [] }, endCtx());
 		const after = read(c);
 		// If git is available, the clean working tree triggers the no-diff flag.
-		// If git is NOT available, the outcome says "git check unavailable" — that's fine too.
+		// If git is NOT available, the outcome says "git check unavailable" - that's fine too.
 		const hasFlag = after.includes("no code change produced");
 		ok(hasFlag || after.includes("git check unavailable"), "ops card with no diff is flagged (or git unavailable)");
 	}
@@ -469,7 +469,7 @@ console.log("circuit breaker — a card dispatched too many times in a session i
 // ── readInstruction: the human's ## Restatement must ACCOMPANY the brief, never be shadowed ──
 // Regression for the round-2 README leak (2026-07-13): planner's Brief dropped the human's
 // reject-reason; task.md carried Brief only; worker rebuilt the exact thing the human rejected.
-console.log("executor — readInstruction carries human corrections alongside the brief:");
+console.log("executor - readInstruction carries human corrections alongside the brief:");
 {
 	const iRoot = fs.mkdtempSync(join(os.tmpdir(), "executor-instr-"));
 	const mk = (name: string, body: string) => {
@@ -482,12 +482,12 @@ console.log("executor — readInstruction carries human corrections alongside th
 
 	const both = mk(
 		"both",
-		"## Intent\ndo it\n\n## Restatement\nplain markdown only — no YAML frontmatter\n\n## Brief\nthe plan\n\n## Reconciler Log\n",
+		"## Intent\ndo it\n\n## Restatement\nplain markdown only - no YAML frontmatter\n\n## Brief\nthe plan\n\n## Reconciler Log\n",
 	);
 	const instr = readInstruction(both);
 	ok(instr.startsWith("the plan"), "brief+restatement: brief still leads");
 	ok(instr.includes("HARD constraints"), "brief+restatement: hard-constraints header present");
-	ok(instr.includes("plain markdown only — no YAML frontmatter"), "brief+restatement: the human's words verbatim");
+	ok(instr.includes("plain markdown only - no YAML frontmatter"), "brief+restatement: the human's words verbatim");
 
 	const restOnly = mk("rest-only", "## Intent\ndo it\n\n## Restatement\njust this\n\n## Reconciler Log\n");
 	ok(readInstruction(restOnly) === "just this", "restatement-only fallback unchanged (no constraints header)");

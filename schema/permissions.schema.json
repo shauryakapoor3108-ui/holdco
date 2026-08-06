@@ -1,7 +1,7 @@
 {
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"title": "Permissions file",
-	"description": "knowledge/permissions.json — the single-source safety policy. Seeded by KnowledgeStore.ensure() (src/knowledge/store.ts); consumed by KnowledgeStore.policyFor(), which resolves {worktree}/{scopedDir} tokens per card, and enforced natively by each harness adapter. Strict contract: no additional properties. Version 1.",
+	"description": "knowledge/permissions.json - the single-source safety policy. Seeded by KnowledgeStore.ensure() (src/knowledge/store.ts); consumed by KnowledgeStore.policyFor(), which resolves {worktree}/{scopedDir} tokens per card, and enforced natively by each harness adapter. Strict contract: no additional properties. Version 1.",
 	"version": 1,
 	"type": "object",
 	"required": ["version", "writeScopes", "denyCommands"],

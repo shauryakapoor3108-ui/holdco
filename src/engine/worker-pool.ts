@@ -1,10 +1,10 @@
-// worker-pool.ts — N-slot execution: one isolated worker per card, driven through
+// worker-pool.ts - N-slot execution: one isolated worker per card, driven through
 // the Harness seam.
 //
 // The single-owner invariant: the engine stays the SOLE process owning the
 // reconciler + snapshot + queue-drain and the SOLE writer of `status`. EXECUTION
 // happens in workers spawned through a Harness adapter (Pi pane, Claude Code
-// headless session, Codex — the pool neither knows nor cares). The pool is the
+// headless session, Codex - the pool neither knows nor cares). The pool is the
 // harness-NEUTRAL machinery: slot accounting, circuit breaker, per-run budget
 // kill, activity watchdog, the unified git-diff harvest, board-state writes.
 // Everything transport-specific (launch commands, steer delivery, sentinels,
@@ -12,7 +12,7 @@
 // spawn / inject / poll / collect / dispose.
 //
 // Disciplines carried from the source system, all still enforced here:
-//   • slot reservation is SYNCHRONOUS (freeSlots decrements before any await) —
+//   • slot reservation is SYNCHRONOUS (freeSlots decrements before any await) -
 //     a same-tick second offer cannot double-allocate (TOCTOU).
 //   • every `writeStatus` is paired with a synchronous `snapshot.set`, no await
 //     between them (loop-suppression: the reconciler must never re-detect the
@@ -87,7 +87,7 @@ export interface WorkerPoolDeps {
 	 *  worker) + permissions (enforced natively) + the per-card message log. */
 	knowledge?: KnowledgeStore;
 	/** Deck telemetry sink. The pool emits IDENTICAL event sequences regardless of
-	 *  adapter (only the `harness` field names the transport) — that is the
+	 *  adapter (only the `harness` field names the transport) - that is the
 	 *  deck-parity guarantee. Absent → no emission. */
 	stageEvents?: StageEventSink;
 }
@@ -107,7 +107,7 @@ export class WorkerPool {
 		this.scopedBase = deps.scopedBase ?? DEFAULT_SCOPED_BASE;
 	}
 
-	/** Resolve the adapter for a card — a per-card `worker:` frontmatter field wins,
+	/** Resolve the adapter for a card - a per-card `worker:` frontmatter field wins,
 	 *  else the pool default. An UNREGISTERED name returns null (dispatch escalates
 	 *  loudly instead of stalling the card in Executing). */
 	private harnessFor(file: string): { name: string; harness: Harness } | null {
@@ -139,29 +139,29 @@ export class WorkerPool {
 	 * session on the reserved slot.
 	 */
 	dispatch(cardId: string, file: string, ctx?: { cwd?: string }): void {
-		// Circuit breaker — a card spawned too many times this session is HARD-STOPPED
+		// Circuit breaker - a card spawned too many times this session is HARD-STOPPED
 		// (suspected runaway). The counter persists across the card's lifecycle.
 		const dispatches = (this.dispatchCounts.get(cardId) ?? 0) + 1;
 		this.dispatchCounts.set(cardId, dispatches);
 		if (dispatches > MAX_DISPATCHES_PER_SESSION) {
-			const reason = `circuit breaker: ${dispatches - 1} spawns in one session — halted (suspected re-execution loop)`;
+			const reason = `circuit breaker: ${dispatches - 1} spawns in one session - halted (suspected re-execution loop)`;
 			writeStatus(file, "Needs Review", {
 				annotations: { halt: "true", interrupted: "true", outcome: JSON.stringify(reason) },
 				logLine: `CIRCUIT BREAKER: halted after ${dispatches - 1} spawns → Needs Review, halt:true`,
 			});
 			this.d.reconciler.snapshot.set(cardId, "Needs Review");
 			this.log("EXEC_CIRCUIT_BREAKER", { card: cardId, dispatches: dispatches - 1 });
-			this.d.host.notify(`🛑 circuit breaker: ${cardId} halted after ${dispatches - 1} spawns — unhalt to clear`, "warning");
+			this.d.host.notify(`🛑 circuit breaker: ${cardId} halted after ${dispatches - 1} spawns - unhalt to clear`, "warning");
 			this.d.host.events.emit("exec:idle", {});
 			return;
 		}
 
 		const instruction = readInstruction(file);
 		if (!instruction) {
-			// Never spawn an empty worker — file straight to review (snapshot-synced).
+			// Never spawn an empty worker - file straight to review (snapshot-synced).
 			writeStatus(file, "Needs Review", {
-				annotations: { cost_total: "0", tokens: "0", duration_s: "0", outcome: JSON.stringify("no brief — nothing to execute") },
-				logLine: "execution skipped: no brief — Executing → Needs Review",
+				annotations: { cost_total: "0", tokens: "0", duration_s: "0", outcome: JSON.stringify("no brief - nothing to execute") },
+				logLine: "execution skipped: no brief - Executing → Needs Review",
 			});
 			this.d.reconciler.snapshot.set(cardId, "Needs Review");
 			this.log("EXEC_NO_BRIEF", { card: cardId });
@@ -169,10 +169,10 @@ export class WorkerPool {
 			return;
 		}
 
-		// Adapter resolution — an unknown `worker:` name is a LOUD failure, not a stall.
+		// Adapter resolution - an unknown `worker:` name is a LOUD failure, not a stall.
 		const resolved = this.harnessFor(file);
 		if (!resolved) {
-			const reason = `unknown harness "${readField(file, "worker") || this.d.defaultHarness}" — no such adapter registered`;
+			const reason = `unknown harness "${readField(file, "worker") || this.d.defaultHarness}" - no such adapter registered`;
 			writeStatus(file, "Needs Review", {
 				annotations: { interrupted: "true", outcome: JSON.stringify(reason), review_flag: JSON.stringify("no-harness") },
 				logLine: `dispatch failed: ${reason}`,
@@ -185,19 +185,19 @@ export class WorkerPool {
 		}
 
 		// HARDENING 1: when wsMgr IS present (production), a card reaching Executing
-		// WITHOUT a lifecycle worktree is an isolation breach — the shared-repo
+		// WITHOUT a lifecycle worktree is an isolation breach - the shared-repo
 		// execution path is unreachable. QUARANTINE instead of falling back.
 		const boardRoot = ctx?.cwd ?? process.cwd();
 		const lifecycleWs = this.d.wsMgr?.getWorkspace(cardId);
 		if (this.d.wsMgr && !lifecycleWs?.worktreePath) {
-			const reason = "isolation breach: card reached Executing without a lifecycle worktree — the shared-repo execution path is unreachable";
+			const reason = "isolation breach: card reached Executing without a lifecycle worktree - the shared-repo execution path is unreachable";
 			writeStatus(file, "Needs Review", {
 				annotations: { interrupted: "true", outcome: JSON.stringify(reason), review_flag: JSON.stringify("isolation-breach") },
-				logLine: `isolation breach: Executing → Needs Review (no lifecycle worktree — quarantined)`,
+				logLine: `isolation breach: Executing → Needs Review (no lifecycle worktree - quarantined)`,
 			});
 			this.d.reconciler.snapshot.set(cardId, "Needs Review");
 			this.log("EXEC_ISOLATION_BREACH", { card: cardId, reason });
-			this.d.host.notify(`⛔ ${cardId}: isolation breach — no lifecycle worktree at Executing → quarantined to Needs Review`, "warning");
+			this.d.host.notify(`⛔ ${cardId}: isolation breach - no lifecycle worktree at Executing → quarantined to Needs Review`, "warning");
 			this.d.host.events.emit("exec:idle", {});
 			return;
 		}
@@ -205,7 +205,7 @@ export class WorkerPool {
 		const domain = readField(file, "domain") || "root";
 		const cardType = readField(file, "card_type") || "";
 		if (!cardType) {
-			this.log("EXEC_NO_CARD_TYPE", { card: cardId, detail: "no card_type in frontmatter — defaulting to artifact contract" });
+			this.log("EXEC_NO_CARD_TYPE", { card: cardId, detail: "no card_type in frontmatter - defaulting to artifact contract" });
 		}
 
 		// Reserve the slot SYNCHRONOUSLY (freeSlots decrements now), then spawn async.
@@ -255,7 +255,7 @@ export class WorkerPool {
 		this.d.stageEvents?.emit(ev);
 	}
 
-	/** The run's worker node — deck-parity guarantee: the shape is IDENTICAL for
+	/** The run's worker node - deck-parity guarantee: the shape is IDENTICAL for
 	 *  every adapter; only `harness` names the transport. */
 	private stageWorker(slot: WorkerSlot, status: StageEvent["status"], extra: Partial<StageEvent> = {}): void {
 		this.stage({
@@ -274,7 +274,7 @@ export class WorkerPool {
 	}
 
 	/** The run's review gate. The card lands at Needs Review, but core.ts has NO
-	 *  landing event for that column — so the pool emits the gate itself on every
+	 *  landing event for that column - so the pool emits the gate itself on every
 	 *  path that files the card there. */
 	private stageReviewGate(slot: WorkerSlot): void {
 		this.stage({
@@ -328,7 +328,7 @@ export class WorkerPool {
 		this.d.host.notify(`🛑 ${slot.cardId}: worker launch failed → Needs Review`, "warning");
 		this.slots.delete(slot.cardId);
 		this.d.host.events.emit("exec:idle", {});
-		// The wsMgr worktree / scoped dir is NOT pruned here — the evidence survives to
+		// The wsMgr worktree / scoped dir is NOT pruned here - the evidence survives to
 		// Needs Review, pruned only at a terminal state. Only the pre-lifecycle fallback
 		// (no wsMgr handle for this card) prunes its scoped dir.
 		if (!this.d.wsMgr?.hasWorkspace(slot.cardId)) this.pruneScopedDir(slot.cardId);
@@ -336,11 +336,11 @@ export class WorkerPool {
 
 	// ── sweep (non-blocking monitor of every active slot, on the engine tick) ──
 	async sweep(): Promise<void> {
-		if (this.sweeping) return; // reentrancy guard — a slow tick must not overlap the next
+		if (this.sweeping) return; // reentrancy guard - a slow tick must not overlap the next
 		this.sweeping = true;
 		try {
 			for (const slot of [...this.slots.values()]) {
-				if (slot.launching || !slot.session) continue; // still spawning — nothing to monitor yet
+				if (slot.launching || !slot.session) continue; // still spawning - nothing to monitor yet
 				await this.monitorSlot(slot);
 			}
 		} finally {
@@ -369,7 +369,7 @@ export class WorkerPool {
 			await this.escalateWatchdog(slot, harness, "harness reported terminal failure");
 			return;
 		}
-		// "unknown" is a transport hiccup, not a verdict — the activity watchdog below
+		// "unknown" is a transport hiccup, not a verdict - the activity watchdog below
 		// is the backstop for a worker that never answers again.
 		if (this.now() - slot.lastActivityAt > this.d.watchdogMs) {
 			await this.escalateWatchdog(slot, harness, `no worker activity for ${Math.round((this.now() - slot.lastActivityAt) / 1000)}s`);
@@ -389,7 +389,7 @@ export class WorkerPool {
 		const errorCount = artifacts.errorCount ?? 0;
 
 		// UNIFIED git diff harvest. The worker's cwd IS the worktree. Stage everything,
-		// diff against the worktree's CREATION BASE — NOT live HEAD (a worker may
+		// diff against the worktree's CREATION BASE - NOT live HEAD (a worker may
 		// `git commit` inside its worktree; a HEAD-diff would then be empty and
 		// silently break the merge-back).
 		let diffStatus = "git diff unavailable";
@@ -426,12 +426,12 @@ export class WorkerPool {
 				const updated = upsertBodySection(currentText, "Diff", `\`\`\`diff\n${truncated}\n\`\`\``);
 				if (updated !== currentText) fs.writeFileSync(slot.file, updated, "utf8");
 			} catch {
-				/* best-effort — the card.diff is still on disk */
+				/* best-effort - the card.diff is still on disk */
 			}
 		} else if (!diffChanged) {
 			try {
 				const currentText = fs.readFileSync(slot.file, "utf8");
-				const updated = upsertBodySection(currentText, "Diff", "_(worktree clean — no changes produced)_");
+				const updated = upsertBodySection(currentText, "Diff", "_(worktree clean - no changes produced)_");
 				if (updated !== currentText) fs.writeFileSync(slot.file, updated, "utf8");
 			} catch {
 				/* best-effort */
@@ -441,8 +441,8 @@ export class WorkerPool {
 		// Outcome + escalate-by-exception flags.
 		const hasOutcomeLine = /^[ \t]*OUTCOME:/im.test(artifacts.outputTail);
 		let outcome = artifacts.outcome;
-		if (!diffChanged) outcome = `${outcome} [⚠ no change produced — worktree clean]`;
-		if (engineTouched) outcome = `${outcome} [⚠ ENGINE TOUCHED — owner must reload after Filed]`;
+		if (!diffChanged) outcome = `${outcome} [⚠ no change produced - worktree clean]`;
+		if (engineTouched) outcome = `${outcome} [⚠ ENGINE TOUCHED - owner must reload after Filed]`;
 		const durationS = Math.max(0, Math.round((this.now() - slot.startedAt) / 1000));
 
 		const annotations: Record<string, string> = {
@@ -460,7 +460,7 @@ export class WorkerPool {
 		if (!hasOutcomeLine) flags.push("no-outcome-line");
 		if (flags.length) annotations.review_flag = JSON.stringify(flags.join(", "));
 
-		// SYNC board write + snapshot (loop-suppressed — no await between these two).
+		// SYNC board write + snapshot (loop-suppressed - no await between these two).
 		writeStatus(slot.file, "Needs Review", {
 			annotations,
 			logLine:
@@ -540,7 +540,7 @@ export class WorkerPool {
 			logLine: `BUDGET KILL: Executing → Needs Review (${reason})`,
 		});
 		this.d.reconciler.snapshot.set(slot.cardId, "Needs Review");
-		// The kill's cost IS known (it triggered the kill); tokens are not — the
+		// The kill's cost IS known (it triggered the kill); tokens are not - the
 		// schema's usage trio is all-or-nothing, so tokens report 0.
 		this.stageWorker(slot, "failed", {
 			...(slot.session ? { prompt_ref: slot.session.promptRef } : {}),
@@ -549,7 +549,7 @@ export class WorkerPool {
 		this.stageReviewGate(slot);
 		this.log("EXEC_BUDGET_EXCEEDED", { card: slot.cardId, cost_total: round6(cost), cap: this.d.cardBudgetUsd });
 		this.message(slot.cardId, "status", reason);
-		this.d.host.notify(`🛑 ${slot.cardId}: ${reason} — killed → Needs Review`, "warning");
+		this.d.host.notify(`🛑 ${slot.cardId}: ${reason} - killed → Needs Review`, "warning");
 		this.slots.delete(slot.cardId);
 		this.d.host.events.emit("exec:idle", {});
 		if (slot.session) await harness.dispose(slot.session);
@@ -589,7 +589,7 @@ export class WorkerPool {
 		this.pruneScopedDir(slot.cardId); // halt = deliberate kill, prune immediately
 	}
 
-	/** Delete the scoped dir for a card (idempotent — one-shot existence guard). */
+	/** Delete the scoped dir for a card (idempotent - one-shot existence guard). */
 	pruneScopedDir(cardId: string): void {
 		const scopedDir = scopedDirFor({ scopedBase: this.scopedBase }, cardId);
 		try {
@@ -600,7 +600,7 @@ export class WorkerPool {
 	}
 
 	/** Shutdown: dispose ALL active worker sessions (don't strand them on exit).
-	 *  Scoped dirs for non-terminal cards SURVIVE — pruned when the card reaches
+	 *  Scoped dirs for non-terminal cards SURVIVE - pruned when the card reaches
 	 *  a terminal state in a later session. */
 	async reapAll(): Promise<void> {
 		for (const slot of [...this.slots.values()]) {
@@ -610,7 +610,7 @@ export class WorkerPool {
 		}
 	}
 
-	// The host log sink must never crash the pool's fire-and-forget continuations —
+	// The host log sink must never crash the pool's fire-and-forget continuations -
 	// same stale-safe intent as the source system's guarded append.
 	private log(event: string, data: Record<string, unknown>): void {
 		try {

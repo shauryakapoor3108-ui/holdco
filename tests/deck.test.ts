@@ -1,4 +1,4 @@
-// deck.test.ts — the deck data contract: the committed synthetic fixture is
+// deck.test.ts - the deck data contract: the committed synthetic fixture is
 // schema-valid + internally coherent (monotone timestamps, parity pair), and
 // replayFixture delivers it through the REAL obs server (ingest tally, run
 // rollup, in-order SSE delivery) with correct re-anchoring + pacing.

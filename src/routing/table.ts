@@ -1,8 +1,8 @@
-// table.ts — the cost-aware model routing table: config, not code.
+// table.ts - the cost-aware model routing table: config, not code.
 //
 // The cost story in one file: one dependable WORKHORSE model completes mapped
 // task classes; FRONTIER models run only where judgment lives (plan/review).
-// Re-routing is a config edit to knowledge/routing.json — no code change, no
+// Re-routing is a config edit to knowledge/routing.json - no code change, no
 // redeploy. The table is part of the governed knowledge layer, versioned and
 // schema-validated like its siblings.
 //
@@ -53,11 +53,11 @@ export function loadRoutingTable(boardRoot: string, warn?: (msg: string) => void
 	try {
 		raw = JSON.parse(fs.readFileSync(p, "utf8"));
 	} catch (err) {
-		if (fs.existsSync(p)) warn?.(`routing.json unusable (${String(err)}) — using built-in defaults`);
+		if (fs.existsSync(p)) warn?.(`routing.json unusable (${String(err)}) - using built-in defaults`);
 		return DEFAULT_ROUTING;
 	}
 	if (!raw || typeof raw !== "object") {
-		warn?.("routing.json is not an object — using built-in defaults");
+		warn?.("routing.json is not an object - using built-in defaults");
 		return DEFAULT_ROUTING;
 	}
 	const tiers = { ...DEFAULT_ROUTING.tiers };
@@ -70,7 +70,7 @@ export function loadRoutingTable(boardRoot: string, warn?: (msg: string) => void
 	if (raw.routes && typeof raw.routes === "object") {
 		for (const [k, v] of Object.entries(raw.routes)) {
 			if (isTier(v)) routes[k] = v;
-			else warn?.(`routing.json: route "${k}" has unknown tier "${String(v)}" — ignored`);
+			else warn?.(`routing.json: route "${k}" has unknown tier "${String(v)}" - ignored`);
 		}
 	}
 	const classifierModel =

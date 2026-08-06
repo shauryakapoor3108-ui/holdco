@@ -1,4 +1,4 @@
-// live-m7-fake-sources.mjs — local stand-ins for Discord's REST API and an IMAP
+// live-m7-fake-sources.mjs - local stand-ins for Discord's REST API and an IMAP
 // mailbox, used by live-m7-intake.sh. The daemon's connector CLIENTS are the
 // real shipped code speaking real HTTP / real IMAP over real sockets; only the
 // remote SERVICES are simulated locally (a build session carries no external

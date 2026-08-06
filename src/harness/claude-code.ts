@@ -1,4 +1,4 @@
-// claude-code.ts — the Claude Code harness adapter: runs each worker as a
+// claude-code.ts - the Claude Code harness adapter: runs each worker as a
 // headless `claude -p` process speaking stream-json on stdin/stdout.
 //
 // Transport mechanics owned here:
@@ -7,7 +7,7 @@
 //     claude-code-guard.ts, NATIVE policy enforcement), deliver the brief as the
 //     first stream-json user message, and KEEP STDIN OPEN so inject() can steer.
 //   • liveness/completion: every stdout line is streamed into session.jsonl
-//     (the durable transcript) and parsed — result events carry usage + cost;
+//     (the durable transcript) and parsed - result events carry usage + cost;
 //     a turn is "done" when its result event lands. Headless completion is
 //     protocol-level: no sentinel file needed.
 //   • telemetry: usage/cost accumulate across result events; collect() extracts
@@ -43,7 +43,7 @@ export interface ClaudeCodeHarnessOpts {
 	/** Reserved default per-run timeout hint for the engine's watchdog. */
 	timeoutMsDefault?: number;
 	/** Extra env vars for the child. Values may contain the tokens
-	 *  `{scopedDir}` and `{workspaceDir}`, substituted per spawn — this is how
+	 *  `{scopedDir}` and `{workspaceDir}`, substituted per spawn - this is how
 	 *  tests hand a per-session control-file path to a fake CLI. */
 	extraEnv?: Record<string, string>;
 }
@@ -77,7 +77,7 @@ function completionContract(workspaceDir: string): string {
 		"## Completion contract",
 		"",
 		`- Work ONLY inside this workspace: ${workspaceDir}`,
-		"- NEVER run `git commit`, `git push`, `git merge`, `git rebase`, or any history rewrite — the engine harvests your UNCOMMITTED working-tree diff after you finish.",
+		"- NEVER run `git commit`, `git push`, `git merge`, `git rebase`, or any history rewrite - the engine harvests your UNCOMMITTED working-tree diff after you finish.",
 		"- Do not edit the card file itself.",
 		"- When the task is complete, end your FINAL message with exactly one line:",
 		"  `OUTCOME: <one-line summary of what you did>`",
@@ -128,7 +128,7 @@ export class ClaudeCodeHarness implements Harness {
 		fs.writeFileSync(promptRef, promptText);
 
 		// Single-source constraints (knowledge layer): rendered NATIVELY as system
-		// prompt injection — never a file inside the worktree (it would pollute the
+		// prompt injection - never a file inside the worktree (it would pollute the
 		// harvested diff). The rendered form is durably referenced for conformance.
 		let constraintsRef: string | null = null;
 		if (req.constraints) {
@@ -277,7 +277,7 @@ export class ClaudeCodeHarness implements Harness {
 				if (s.exitCode === 0 && s.resultCount >= 1) return { state: "done", ...base };
 				return { state: "failed", ...base };
 			}
-			// Alive. Multi-turn idle (all delivered turns answered) counts as done —
+			// Alive. Multi-turn idle (all delivered turns answered) counts as done -
 			// stdin is still open so inject() can start the next turn.
 			if (s.pendingTurns === 0 && s.resultCount >= 1) return { state: "done", ...base };
 			if (s.resultCount >= 1) return { state: "working", ...base };

@@ -1,9 +1,9 @@
-// host.ts — the EngineHost seam.
+// host.ts - the EngineHost seam.
 //
 // Everything the engine needs from its runtime environment, behind one small
 // interface. The Pi shell implements this over Pi's ExtensionAPI (events bus,
 // appendEntry, flags); the standalone daemon implements it natively. Phase 0
-// measured the full coupling surface — this interface IS that surface:
+// measured the full coupling surface - this interface IS that surface:
 //   events   ← pi.events.emit / pi.events.on   (71 call sites)
 //   log      ← pi.appendEntry                  (40 call sites)
 //   config   ← pi.getFlag / registerFlag / env (16 call sites)

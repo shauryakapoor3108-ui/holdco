@@ -18,7 +18,7 @@ tmp/
 scratch/
 .scratch/
 
-# local release-prep notes (audit evidence — never publish)
+# local release-prep notes (audit evidence - never publish)
 tasks/
 
 # editor junk

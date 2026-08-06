@@ -1,7 +1,7 @@
-// schema.test.ts — the schema layer: (i) unit tests for the zero-dep JSON
-// Schema validator subset (src/schema/validate.ts), (ii) a fixture walk —
+// schema.test.ts - the schema layer: (i) unit tests for the zero-dep JSON
+// Schema validator subset (src/schema/validate.ts), (ii) a fixture walk -
 // every schema/fixtures/*.valid.*.json must pass its schema and every
-// *.invalid.*.json must fail, (iii) integration — KnowledgeStore.ensure()
+// *.invalid.*.json must fail, (iii) integration - KnowledgeStore.ensure()
 // seeds must validate against permissions/constraints schemas.
 // Run via `node tests/schema.test.ts`.
 
@@ -135,7 +135,7 @@ for (const file of fixtureFiles) {
 	const value = JSON.parse(fs.readFileSync(join(fixturesDir, file), "utf8"));
 	const r = validateFile(schemaPath, value);
 	if (m[2] === "valid") {
-		ok(r.valid, `${file} passes ${m[1]} schema${r.valid ? "" : ` — ${r.errors.join("; ")}`}`);
+		ok(r.valid, `${file} passes ${m[1]} schema${r.valid ? "" : ` - ${r.errors.join("; ")}`}`);
 	} else {
 		ok(!r.valid && r.errors.length >= 1, `${file} fails ${m[1]} schema with >=1 error`);
 	}
@@ -151,7 +151,7 @@ store.ensure();
 {
 	const seeded = JSON.parse(fs.readFileSync(join(root, "knowledge", "permissions.json"), "utf8"));
 	const r = validateFile(join(schemaDir, "permissions.schema.json"), seeded);
-	ok(r.valid, `seeded permissions.json validates${r.valid ? "" : ` — ${r.errors.join("; ")}`}`);
+	ok(r.valid, `seeded permissions.json validates${r.valid ? "" : ` - ${r.errors.join("; ")}`}`);
 }
 {
 	const raw = fs.readFileSync(join(root, "knowledge", "constraints.md"), "utf8");
@@ -159,7 +159,7 @@ store.ensure();
 	ok(m !== null, "seeded constraints.md has version frontmatter");
 	const frontmatter = m ? { version: Number(m[1]) } : {};
 	const r = validateFile(join(schemaDir, "constraints.schema.json"), frontmatter);
-	ok(r.valid, `seeded constraints.md frontmatter validates${r.valid ? "" : ` — ${r.errors.join("; ")}`}`);
+	ok(r.valid, `seeded constraints.md frontmatter validates${r.valid ? "" : ` - ${r.errors.join("; ")}`}`);
 }
 
 fs.rmSync(root, { recursive: true, force: true });

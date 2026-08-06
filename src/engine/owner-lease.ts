@@ -1,14 +1,14 @@
-// owner-lease.ts — D8 Component 2: the single-owner lease guard (engine-layer leader election).
+// owner-lease.ts - D8 Component 2: the single-owner lease guard (engine-layer leader election).
 //
 // Two interactive `pi` REPLs on the same vault each build a Reconciler + snapshot and then
 // auto-revert each other (the bug-2 / 12h revert-storm incident). The fix is a lease the ENGINE
 // acquires at init: exactly one owner per vault arms the reconciler; a second loads INERT.
 //
-// This module is PURE policy + thin fs/proc I/O — it NEVER writes card `status`, never touches a
+// This module is PURE policy + thin fs/proc I/O - it NEVER writes card `status`, never touches a
 // snapshot, never reconciles. `index.ts` calls `acquireLease` once in `session_start` (before the
 // `if (!reconciler)` construction block) and `releaseLease` in `session_shutdown`.
 //
-// FAIL-SAFE INVARIANT: the only tolerated error mode is REFUSING when we could have acquired —
+// FAIL-SAFE INVARIANT: the only tolerated error mode is REFUSING when we could have acquired -
 // never a false ACQUIRE that lets two live owners both run. Every ambiguous probe result that
 // could mean "a live owner exists" resolves to REFUSE.
 
@@ -17,7 +17,7 @@ import * as os from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 /** The on-disk lease record. `pid`+`startedAt`+the cmdline reuse-check fully cover PID-reuse;
- *  no `nonce` (an undocumented field is debt — spec Item-11). */
+ *  no `nonce` (an undocumented field is debt - spec Item-11). */
 export interface Lease {
 	pid: number;
 	startedAt: string; // ISO
@@ -38,7 +38,7 @@ export interface LeaseProbe {
 	cmdline: (pid: number) => { ok: true; value: string } | { ok: false; reason: "ENOENT" | "EACCES" | "OTHER" };
 }
 
-// ── lease path (cwd-INVARIANT — keyed to the vault, not the launch dir) ─────────────────────────
+// ── lease path (cwd-INVARIANT - keyed to the vault, not the launch dir) ─────────────────────────
 // Derive from the RESOLVED absolute cards dir so two `pi` instances pointing at the same vault
 // from different cwds contend on the SAME lock; genuinely different vaults get different locks.
 export function leasePathFor(cardsDir: string): string {
@@ -94,7 +94,7 @@ function readLease(leasePath: string): { lease: Lease } | { corrupt: true } | nu
 		}
 		return { corrupt: true };
 	} catch {
-		return { corrupt: true }; // unparseable byte(s) — crash-mid-write or external clobber
+		return { corrupt: true }; // unparseable byte(s) - crash-mid-write or external clobber
 	}
 }
 
@@ -119,10 +119,10 @@ export function acquireLease(leasePath: string, selfPid: number = process.pid, p
 
 	// Corrupt/unparseable lock → we cannot probe an owner. A torn write during a live owner's
 	// lease creation, however rare, means overwriting could double-own → FAIL SAFE → REFUSE.
-	// Recovery is a human deleting the (clearly broken) lock file — visible and trivial. Strict
+	// Recovery is a human deleting the (clearly broken) lock file - visible and trivial. Strict
 	// (refuse) is the default precisely because invariant (c) forbids any false acquire.
 	if ("corrupt" in existing) {
-		return { owner: false, action: "refused", holderPid: 0, log: "lease file is corrupt/unparseable — refusing (fail-safe). Delete .pi/card-engine-owner.lock to recover if no owner is running." };
+		return { owner: false, action: "refused", holderPid: 0, log: "lease file is corrupt/unparseable - refusing (fail-safe). Delete .pi/card-engine-owner.lock to recover if no owner is running." };
 	}
 
 	const lease = existing.lease;
@@ -135,7 +135,7 @@ export function acquireLease(leasePath: string, selfPid: number = process.pid, p
 
 	// Held by another pid: is it alive?
 	if (!probe.alive(lease.pid)) {
-		// ESRCH — the dead-owner case (the 12h incident). Reclaim.
+		// ESRCH - the dead-owner case (the 12h incident). Reclaim.
 		return { owner: true, action: "reclaimed-dead", lease: writeLease(leasePath, selfPid), log: `reclaimed stale owner lease (dead pid ${lease.pid})` };
 	}
 
@@ -147,14 +147,14 @@ export function acquireLease(leasePath: string, selfPid: number = process.pid, p
 			return { owner: true, action: "reclaimed-dead", lease: writeLease(leasePath, selfPid), log: `reclaimed stale owner lease (pid ${lease.pid} vanished during probe)` };
 		}
 		// EACCES (live process, other user) or OTHER → fail SAFE → refuse.
-		return { owner: false, action: "refused", holderPid: lease.pid, log: `another process holds pid ${lease.pid} and its cmdline is unreadable (${cm.reason}) — refusing (fail-safe)` };
+		return { owner: false, action: "refused", holderPid: lease.pid, log: `another process holds pid ${lease.pid} and its cmdline is unreadable (${cm.reason}) - refusing (fail-safe)` };
 	}
 
 	// An EMPTY/whitespace cmdline (zombie, kernel thread, or a process mid-exec) is NOT an
 	// unambiguous "not pi" signal → fail SAFE → refuse (the only confident reclaim signal is a
 	// readable, non-empty cmdline that does not look like pi).
 	if (cm.value.replace(/\0/g, "").trim() === "") {
-		return { owner: false, action: "refused", holderPid: lease.pid, log: `pid ${lease.pid} is alive with an empty cmdline (indeterminate) — refusing (fail-safe)` };
+		return { owner: false, action: "refused", holderPid: lease.pid, log: `pid ${lease.pid} is alive with an empty cmdline (indeterminate) - refusing (fail-safe)` };
 	}
 
 	if (looksLikePi(cm.value)) {
@@ -166,7 +166,7 @@ export function acquireLease(leasePath: string, selfPid: number = process.pid, p
 }
 
 /**
- * Release on shutdown — delete the lease ONLY when the on-disk pid is ours. An INERT second
+ * Release on shutdown - delete the lease ONLY when the on-disk pid is ours. An INERT second
  * owner (different pid) thus never deletes the real owner's lease. A /reload fires shutdown
  * (release) then session_start (re-acquire, same pid) → clean.
  */

@@ -1,9 +1,9 @@
-// goal-dag.ts — the PURE goal-DAG validators, shared by the `/commit-goal` REPL command
+// goal-dag.ts - the PURE goal-DAG validators, shared by the `/commit-goal` REPL command
 // (index.ts) AND the control-inbox `commit-goal` verb (control-inbox.ts).
 //
 // Extracted verbatim from index.ts so there is ONE source of truth for the commit-to-Held
 // admission check: both the interactive owner command and the seam-driven drain refuse the
-// SAME invalid DAGs (dangling deps, cycles) all-or-nothing. Zero IO, zero deps — a total
+// SAME invalid DAGs (dangling deps, cycles) all-or-nothing. Zero IO, zero deps - a total
 // function of (goalIds, depsById, filedIds) → first failure message | null.
 
 /**

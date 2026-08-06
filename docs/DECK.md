@@ -2,11 +2,11 @@
 
 The deck UI (built externally against this contract, then ported in) consumes
 **one data source**: the holdco observability server (`holdco obs`). This
-document is the contract — treat changes to it as data-contract changes
+document is the contract - treat changes to it as data-contract changes
 (schema + fixtures in the same PR, see [ARCHITECTURE.md](ARCHITECTURE.md)),
 not drive-by edits.
 
-All fixtures and demo feeds are **synthetic** — never derived from real cards,
+All fixtures and demo feeds are **synthetic** - never derived from real cards,
 sessions, or transcripts.
 
 ## Server & auth
@@ -31,7 +31,7 @@ headers).
 
 ## StageEvent shape
 
-Authoritative schema: `schema/stage-event.schema.json` (strict —
+Authoritative schema: `schema/stage-event.schema.json` (strict -
 `additionalProperties: false`). Fields:
 
 | Field | Type | Notes |
@@ -41,7 +41,7 @@ Authoritative schema: `schema/stage-event.schema.json` (strict —
 | `node_id` | string | stable node identity within a run (flow-map node) |
 | `node_type` | `agent` \| `deterministic` \| `gate` | flow-map node kind |
 | `stage` | string | `classify`, `worker`, `harvest`, `human-gate:approval`, `human-gate:review` today; open set |
-| `harness` | string \| null | `pi` / `claude-code` / … — null for deterministic + gate nodes. The ONLY field allowed to differ between harnesses (parity rule) |
+| `harness` | string \| null | `pi` / `claude-code` / … - null for deterministic + gate nodes. The ONLY field allowed to differ between harnesses (parity rule) |
 | `model` | string? | model id driving an agent node |
 | `tier` | `workhorse` \| `frontier`? | routing decision |
 | `status` | `started` \| `progress` \| `passed` \| `failed` \| `awaiting_human` | node status |
@@ -63,20 +63,20 @@ Authoritative schema: `schema/stage-event.schema.json` (strict —
 
 ## Surface mapping
 
-- **Attention rail** — cards whose latest gate node event is `awaiting_human`
+- **Attention rail** - cards whose latest gate node event is `awaiting_human`
   (stage names the ask: `human-gate:approval` = approve plan,
   `human-gate:review` = review result). Spend-so-far = the run rollup's
   `cost_usd`; tier/model badges from the latest worker/classify event.
-- **Flow map (per card)** — nodes in first-seen `seq` order:
+- **Flow map (per card)** - nodes in first-seen `seq` order:
   `approval-gate → classify → worker → harvest → review-gate` today. Agent,
   deterministic, and gate nodes are all first-class.
-- **Node inspector** — from the node's latest event: `prompt_ref` (prompt tab),
+- **Node inspector** - from the node's latest event: `prompt_ref` (prompt tab),
   `payload_ref` (work tab), `usage` (spend tab), `model`/`tier`/`harness`
   badges.
-- **Kanban** — column state comes from the card board itself (the `cards/`
+- **Kanban** - column state comes from the card board itself (the `cards/`
   dir via the engine), NOT from telemetry. In demo mode the deck may derive an
   approximate column from the latest gate/worker event.
-- **Parity rule** — the same card run under `pi` and `claude-code` produces
+- **Parity rule** - the same card run under `pi` and `claude-code` produces
   identical sequences modulo the `harness` field. Render identically modulo
   the harness badge; a difference anywhere else is an engine bug (and
   test-enforced upstream).

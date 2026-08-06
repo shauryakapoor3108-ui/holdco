@@ -1,5 +1,5 @@
-// obs-client.ts — read-only client for the pi-observability server (D2 telemetry harvest).
-// (EngineHost port: Pi-free already — near-verbatim; constructor parameter properties
+// obs-client.ts - read-only client for the pi-observability server (D2 telemetry harvest).
+// (EngineHost port: Pi-free already - near-verbatim; constructor parameter properties
 // expanded to explicit fields per the strip-only TypeScript rule.)
 //
 // The owner is the SOLE board-state writer; the cost/token rollup it writes on a card's
@@ -12,7 +12,7 @@
 // AUTH (grounded server.ts:27,124-139): the server auth-walls every push + query; the token
 // is `OBS_AUTH_TOKEN` (random per-boot if unset). The owner pins one token, propagates it to
 // every worker launch, and sends it here as `Authorization: Bearer <token>`. A 401 / down
-// server / missing session is NOT fatal — every method RESOLVES `{ ok:false }` so the harvest
+// server / missing session is NOT fatal - every method RESOLVES `{ ok:false }` so the harvest
 // degrades to the OUTCOME-only fallback (spec §7), never hard-blocks board state.
 //
 // `fetchFn` is injectable so the D2 self-test drives harvest off a FAKE server.
@@ -67,7 +67,7 @@ export class ObsClient {
 	 * Resolve a worker's runtime session_id via its `run:<runId>` tag. Pi mints the
 	 * session UUID at runtime (not predictable from CLI args), so the per-spawn tag is
 	 * the only sound correlation key. Returns the single matching session_id, or null
-	 * (no match yet — the worker has not pushed its first event, or obs is down).
+	 * (no match yet - the worker has not pushed its first event, or obs is down).
 	 */
 	async resolveSessionIdByTag(tag: string): Promise<string | null> {
 		const data = await this.get(`/sessions?tag=${encodeURIComponent(tag)}`);

@@ -1,4 +1,4 @@
-// state-machine.test.ts — smoke tests for the legal-transition matrix and
+// state-machine.test.ts - smoke tests for the legal-transition matrix and
 // frontmatter round-trip. Run via `node tests/state-machine.test.ts`.
 
 import * as fs from "node:fs";

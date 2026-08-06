@@ -1,5 +1,5 @@
-// orchestrate.test.ts — INTEGRATION: the daemon's execution glue end to end.
-// Real CardEngine (noLease, events-off, huge sweep — reconciles are driven
+// orchestrate.test.ts - INTEGRATION: the daemon's execution glue end to end.
+// Real CardEngine (noLease, events-off, huge sweep - reconciles are driven
 // manually) + real Reconciler through the engine, real WorkspaceManager in
 // worktree-only mode (no herdr), real WorkerPool over a controllable FakeHarness,
 // real Orchestrator. drain() is called manually for determinism (start() arms an
@@ -284,7 +284,7 @@ async function run() {
 	await rig.orch.drain();
 	ok(await until(() => rig.wsMgr.hasWorkspace("aa-first") && rig.wsMgr.hasWorkspace("bb-second")), "both lifecycle workspaces created");
 
-	// Drain pass 2: ONE slot — aa-first (id order) dispatches, bb-second stays Queued.
+	// Drain pass 2: ONE slot - aa-first (id order) dispatches, bb-second stays Queued.
 	await rig.orch.drain();
 	await rig.pool.settleLaunches();
 	ok(status(fileA) === "Executing" && rig.fake.spawnedFor("aa-first"), "first card dispatched into the single slot");
@@ -309,7 +309,7 @@ async function run() {
 	t.cleanup();
 }
 
-	console.log("\n── start(): event wiring — card:intake landing → wsMgr creates the workspace ──");
+	console.log("\n── start(): event wiring - card:intake landing → wsMgr creates the workspace ──");
 
 {
 	const t = setup();

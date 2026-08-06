@@ -1,4 +1,4 @@
-// connectors.test.ts — hermetic tests for the v1 intake connectors.
+// connectors.test.ts - hermetic tests for the v1 intake connectors.
 // Drafter unit checks, a fake Discord REST endpoint behind an injected
 // fetchFn, an in-process fake IMAP4rev1 server on node:net, and the shipped
 // connector conformance suite run against both connectors.
@@ -107,7 +107,7 @@ interface DiscordFake {
 	/** Every request the connector made: when, and whether it got the 429. */
 	requestLog: Array<{ at: number; served429: boolean }>;
 	failNext?: { status: number; retryAfter?: string };
-	/** Serve the last injected message once more (ignoring `after`) — an
+	/** Serve the last injected message once more (ignoring `after`) - an
 	 *  at-least-once transport redelivery. */
 	redeliverOnce: boolean;
 }
@@ -169,7 +169,7 @@ console.log("── discord connector (fake REST)");
 {
 	const fake = makeDiscordFake();
 	const logs: string[] = [];
-	// History BEFORE start — the first poll must seed the cursor, not deliver.
+	// History BEFORE start - the first poll must seed the cursor, not deliver.
 	fake.inject("chan-1", "old history 1");
 	fake.inject("chan-1", "old history 2");
 
@@ -215,7 +215,7 @@ console.log("── discord connector (fake REST)");
 
 	// 429: honour Retry-After by skipping polls until the window elapses.
 	// Asserted via the fake's request log (gap between the 429 and the next
-	// request) rather than a wall-clock sleep — load-independent.
+	// request) rather than a wall-clock sleep - load-independent.
 	fake.failNext = { status: 429, retryAfter: "0.4" };
 	const id5 = fake.inject("chan-1", "after the rate limit");
 	const ev5 = await waitFor(() => received.find((e) => e.sourceRef === `discord://chan-1/${id5}`), 3000);
@@ -263,7 +263,7 @@ console.log("── discord conformance");
 		cardSchemaPath: schemaPath,
 		deliveryTimeoutMs: 3000,
 	});
-	for (const c of checks) ok(c.ok, `[discord] ${c.id}${c.detail ? ` — ${c.detail}` : ""}`);
+	for (const c of checks) ok(c.ok, `[discord] ${c.id}${c.detail ? ` - ${c.detail}` : ""}`);
 }
 
 // ─────────────────────────────────────────────── imap: fake IMAP4rev1 server
@@ -500,7 +500,7 @@ console.log("── imap conformance");
 		cardSchemaPath: schemaPath,
 		deliveryTimeoutMs: 4000,
 	});
-	for (const c of checks) ok(c.ok, `[imap] ${c.id}${c.detail ? ` — ${c.detail}` : ""}`);
+	for (const c of checks) ok(c.ok, `[imap] ${c.id}${c.detail ? ` - ${c.detail}` : ""}`);
 	await fake.close();
 }
 

@@ -1,4 +1,4 @@
-// conformance.ts — the executable definition of "a working Connector".
+// conformance.ts - the executable definition of "a working Connector".
 //
 // Shipped (not test-only) so a contributor adding Slack / Telegram / webhook
 // intake runs exactly this against their implementation, the same way harness
@@ -15,7 +15,7 @@ export interface ConnectorWorld {
 	/** Inject one item into the watched source; the connector must deliver it.
 	 *  Returns the source_ref the item will carry. */
 	injectItem(n: number): Promise<string>;
-	/** Redeliver the SAME item (or restart-equivalent) — dedupe must hold. */
+	/** Redeliver the SAME item (or restart-equivalent) - dedupe must hold. */
 	redeliverLast(): Promise<void>;
 	/** A temp cards dir for the drafting checks. */
 	cardsDir: string;
@@ -68,7 +68,7 @@ export async function runConnectorConformance(world: ConnectorWorld): Promise<Co
 		for (const f of ["surfaced_by", "source_type", "source_ref", "drafter"]) {
 			push(`provenance-${f}`, new RegExp(`^${f}:\\s*\\S`, "m").test(text), text.match(new RegExp(`^${f}:.*$`, "m"))?.[0] ?? "missing");
 		}
-		// frontmatter → object (line-scalars only — the drafter writes only scalars)
+		// frontmatter → object (line-scalars only - the drafter writes only scalars)
 		const fmText = text.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
 		const fm: Record<string, unknown> = {};
 		for (const line of fmText.split("\n")) {

@@ -6,5 +6,5 @@
 	"stage": "verify",
 	"status": "passed",
 	"ts": "2026-07-17T09:15:00Z",
-	"smuggled_extra_field": "telemetry is a strict contract — additionalProperties false"
+	"smuggled_extra_field": "telemetry is a strict contract - additionalProperties false"
 }

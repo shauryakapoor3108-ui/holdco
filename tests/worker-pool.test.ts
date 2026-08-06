@@ -1,7 +1,7 @@
-// worker-pool.test.ts — drives the WorkerPool DIRECTLY (dispatch + sweep, no
+// worker-pool.test.ts - drives the WorkerPool DIRECTLY (dispatch + sweep, no
 // orchestrator) through the Harness seam under a controllable FakeHarness and a
 // fake EngineHost. The old herdr/obs-driven transport mechanics moved into the
-// adapters and are covered by tests/harness-pi.test.ts + tests/harness-claude-code.test.ts —
+// adapters and are covered by tests/harness-pi.test.ts + tests/harness-claude-code.test.ts -
 // they are NOT re-tested here. This suite proves the harness-NEUTRAL machinery:
 // slot accounting, circuit breaker, budget kill, activity watchdog, the unified
 // git-diff harvest, board-state writes, adapter selection + teardown.
@@ -9,7 +9,7 @@
 //
 // Every block that exercises the finalize diff harvest uses a REAL git repo +
 // a REAL git worktree (gitWorktreeAdd) registered on a REAL WorkspaceManager in
-// worktree-only mode (no herdr) — the harvest runs real `git add -A` +
+// worktree-only mode (no herdr) - the harvest runs real `git add -A` +
 // `git diff --staged <base>` against the worktree's creation base.
 
 import { execSync, type ExecSyncOptions } from "node:child_process";
@@ -214,7 +214,7 @@ function makePool(
 	const { host, logged, emitted, notices } = fakeHost();
 	const fake = opts.fake ?? new FakeHarness("fake");
 	const reconciler = new Reconciler(cardsDir);
-	// worktree-only mode: NO herdr dep — the git worktree is the isolation primitive.
+	// worktree-only mode: NO herdr dep - the git worktree is the isolation primitive.
 	const wsMgr = opts.withWsMgr ? new WorkspaceManager({ host, scopedBase }) : undefined;
 	const deps: WorkerPoolDeps = {
 		host,
@@ -231,7 +231,7 @@ function makePool(
 	return { pool: new WorkerPool(deps), fake, reconciler, host, logged, emitted, notices, wsMgr };
 }
 
-/** Inject a lifecycle worktree handle (a REAL git worktree) into wsMgr for a card —
+/** Inject a lifecycle worktree handle (a REAL git worktree) into wsMgr for a card -
  *  worktree-only mode, so workspaceId is null. */
 function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: string): { worktree: string; baseCommit: string } {
 	const scopedDir = join(scopedBase, id);
@@ -311,7 +311,7 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 	ok(rig.emitted.some((e) => e.event === "exec:idle"), "exec:idle emitted (drain nudge)");
 	ok(rig.fake.disposedFor("bravo"), "adapter dispose called after finalize");
 	const events = rig.reconciler.reconcile("sweep");
-	ok(!events.some((e) => e.event === "ILLEGAL_REVERT"), "snapshot synced — next reconcile sees no delta / no ILLEGAL_REVERT");
+	ok(!events.some((e) => e.event === "ILLEGAL_REVERT"), "snapshot synced - next reconcile sees no delta / no ILLEGAL_REVERT");
 	cleanup();
 }
 
@@ -336,7 +336,7 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 	const text = fm(file);
 	ok(text.includes("no change produced"), "outcome flagged `no change produced`");
 	ok(text.includes("diff_status: clean"), "diff_status: clean");
-	ok(text.includes("worktree clean — no changes produced"), "## Diff section says worktree clean");
+	ok(text.includes("worktree clean - no changes produced"), "## Diff section says worktree clean");
 	cleanup();
 }
 
@@ -379,7 +379,7 @@ function injectWorktree(rig: PoolRig, root: string, scopedBase: string, id: stri
 	rig.pool.dispatch("echo", file, { cwd: root });
 	await rig.pool.settleLaunches();
 	ok(status(file) === "Needs Review", "no-brief card → Needs Review");
-	ok(fm(file).includes("no brief — nothing to execute"), "outcome explains the no-brief skip");
+	ok(fm(file).includes("no brief - nothing to execute"), "outcome explains the no-brief skip");
 	ok(rig.fake.spawned.length === 0, "no worker spawned");
 	ok(rig.pool.freeSlots() === 2, "no slot consumed");
 	ok(rig.logged.some((e) => e.event === "EXEC_NO_BRIEF" && e.card === "echo"), "EXEC_NO_BRIEF logged");

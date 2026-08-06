@@ -2,5 +2,5 @@
 	"version": 1,
 	"writeScopes": ["{worktree}"],
 	"denyCommands": [],
-	"extraKey": "strict contract — additionalProperties false"
+	"extraKey": "strict contract - additionalProperties false"
 }

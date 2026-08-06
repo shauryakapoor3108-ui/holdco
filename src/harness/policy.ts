@@ -1,4 +1,4 @@
-// policy.ts — the pure safety-policy evaluator every harness adapter enforces
+// policy.ts - the pure safety-policy evaluator every harness adapter enforces
 // NATIVELY (Claude Code → PreToolUse hook process; Pi → tool_call guard
 // extension; Codex → sandbox config). One evaluator, N enforcement shells: the
 // decision logic lives here so conformance can assert identical verdicts across
@@ -9,11 +9,11 @@
 //   • file writes/edits are allowed ONLY under policy.writeScopes (the per-card
 //     worktree + scoped dir). Reads are never blocked.
 //   • shell commands matching a denyCommands pattern are blocked outright
-//     (git push/commit/merge/… — publishing is a human gate; the harvest reads
+//     (git push/commit/merge/… - publishing is a human gate; the harvest reads
 //     the UNCOMMITTED worktree).
 //   • shell commands whose WRITE TARGETS resolve outside writeScopes are
 //     blocked. Only write/delete verbs trip this (redirects, tee, sed -i,
-//     rm/mv/…, dd of=) — a command merely *referencing* an outside path (cat,
+//     rm/mv/…, dd of=) - a command merely *referencing* an outside path (cat,
 //     grep, ls) never does. Verbs are word-boundary matched so `used` or
 //     `committee` don't masquerade as sed/tee (damage-control bug-1/3 lesson).
 
@@ -47,7 +47,7 @@ function underScope(resolved: string, scopes: string[], cwd: string): boolean {
 /**
  * Extract the candidate WRITE/DELETE target tokens of a shell command. Deliberately
  * conservative: it looks for the mutation verbs + redirect forms, not a full shell
- * parse. Unrecognised constructs pass through — the worktree cwd plus denyCommands
+ * parse. Unrecognised constructs pass through - the worktree cwd plus denyCommands
  * carry the rest of the guarantee.
  */
 export function bashWriteTargets(command: string): string[] {
@@ -73,7 +73,7 @@ export function bashWriteTargets(command: string): string[] {
 	return targets.filter((t) => t !== "/dev/null" && !t.startsWith("/dev/") && !t.startsWith("&"));
 }
 
-/** Evaluate one tool action against the policy. Pure — no fs, no env. */
+/** Evaluate one tool action against the policy. Pure - no fs, no env. */
 export function evaluateToolAction(policy: SafetyPolicy, action: ToolAction, cwd: string): PolicyVerdict {
 	if (action.kind === "write") {
 		const resolved = resolveTarget(action.path, cwd);
@@ -90,7 +90,7 @@ export function evaluateToolAction(policy: SafetyPolicy, action: ToolAction, cwd
 				return { block: true, reason: `denied command pattern: ${pattern}` };
 			}
 		} catch {
-			/* a malformed pattern must not disable the guard — skip it */
+			/* a malformed pattern must not disable the guard - skip it */
 		}
 	}
 	for (const target of bashWriteTargets(action.command)) {

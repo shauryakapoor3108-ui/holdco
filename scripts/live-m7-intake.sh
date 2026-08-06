@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# live-m7-intake.sh — M7 live proof (run manually: `bash scripts/live-m7-intake.sh`).
+# live-m7-intake.sh - M7 live proof (run manually: `bash scripts/live-m7-intake.sh`).
 #
 # Intake end-to-end through the REAL daemon: `holdco serve` runs both shipped
-# connectors — DiscordConnector polling a Discord-REST-shaped API over real
-# HTTP, ImapConnector speaking real IMAP4rev1 over a real TCP socket — and a
+# connectors - DiscordConnector polling a Discord-REST-shaped API over real
+# HTTP, ImapConnector speaking real IMAP4rev1 over a real TCP socket - and a
 # Discord message + an email EACH draft a card at Draft with full provenance
 # {surfaced_by, source_type, source_ref, drafter}. Redelivery dedupe is
 # asserted too (the email is re-flagged unseen; no second card may appear).
 #
-# The remote SERVICES are simulated locally (live-m7-fake-sources.mjs) — a
-# build session carries no Discord/IMAP credentials — but every line of
+# The remote SERVICES are simulated locally (live-m7-fake-sources.mjs) - a
+# build session carries no Discord/IMAP credentials - but every line of
 # shipped connector code runs for real, over real sockets. No model spend
 # (drafted cards rest at Draft; nothing executes).
 set -euo pipefail
@@ -29,7 +29,7 @@ node "$HOLDCO_ROOT/scripts/live-m7-fake-sources.mjs" "$DISCORD_PORT" "$IMAP_PORT
 SOURCES=$!
 sleep 1
 
-# 2. the daemon, connectors armed (execution off — intake is the proof)
+# 2. the daemon, connectors armed (execution off - intake is the proof)
 (
 	cd "$BOARD"
 	DISCORD_BOT_TOKEN="holdco-live-test-token" IMAP_USER="operator@holdco.test" IMAP_PASSWORD="holdco-test" \
@@ -43,10 +43,10 @@ sleep 4  # let the Discord connector seed its cursor (first poll delivers nothin
 
 # 3. inject one Discord message + one email
 cat > "$CTRL/discord-1.json" <<'EOF'
-{ "channel": "777001", "author": "shaurya", "content": "Ship the pricing page update — copy is in the shared doc, needs to go out this week." }
+{ "channel": "777001", "author": "shaurya", "content": "Ship the pricing page update - copy is in the shared doc, needs to go out this week." }
 EOF
 cat > "$CTRL/mail-1.json" <<'EOF'
-{ "from": "client@holdco.test", "subject": "Renewal quote for Acme", "messageId": "<quote-4711@holdco.test>", "text": "Hi — can you send over the renewal quote for the Acme account before Friday?\nThanks!" }
+{ "from": "client@holdco.test", "subject": "Renewal quote for Acme", "messageId": "<quote-4711@holdco.test>", "text": "Hi - can you send over the renewal quote for the Acme account before Friday?\nThanks!" }
 EOF
 
 echo "waiting for both cards to be drafted…"
@@ -66,7 +66,7 @@ done
 
 # 4. dedupe: re-flag the email unseen (redelivery) → still exactly 2 cards
 cat > "$CTRL/mail-2.json" <<'EOF'
-{ "from": "client@holdco.test", "subject": "Renewal quote for Acme", "messageId": "<quote-4711@holdco.test>", "text": "Hi — can you send over the renewal quote for the Acme account before Friday?\nThanks!" }
+{ "from": "client@holdco.test", "subject": "Renewal quote for Acme", "messageId": "<quote-4711@holdco.test>", "text": "Hi - can you send over the renewal quote for the Acme account before Friday?\nThanks!" }
 EOF
 sleep 4
 count_after=$(find "$BOARD/cards" -name 'in-*.md' 2>/dev/null | wc -l)
@@ -80,10 +80,10 @@ ok=1
 
 echo
 if [ "$ok" = 1 ]; then
-	echo "✅ M7 LIVE PROOF PASSED — Discord message + email each drafted exactly one card with full provenance; redelivered email deduped ($count_after cards total)."
+	echo "✅ M7 LIVE PROOF PASSED - Discord message + email each drafted exactly one card with full provenance; redelivered email deduped ($count_after cards total)."
 	echo "   board kept at $BOARD (inspect, then delete)"
 else
-	echo "❌ M7 LIVE PROOF FAILED — cards: $count_after, discord: ${discord_card:-none}, email: ${email_card:-none}"
+	echo "❌ M7 LIVE PROOF FAILED - cards: $count_after, discord: ${discord_card:-none}, email: ${email_card:-none}"
 	tail -20 "$BOARD/daemon.log"
 	exit 1
 fi

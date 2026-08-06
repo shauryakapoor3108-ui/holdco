@@ -1,4 +1,4 @@
-// git-ops.test.ts — thorough unit tests for git-ops.ts against throwaway temp
+// git-ops.test.ts - thorough unit tests for git-ops.ts against throwaway temp
 // git repos. Run via `bun run git-ops.test.ts`.
 //
 // Every test creates its own bare.git + clone, exercises one or two functions,
@@ -65,7 +65,7 @@ function withRepo(label: string, fn: (clone: string) => void): void {
 		fn(clone);
 	} catch (e) {
 		fail++;
-		console.log(`  ❌ ${label} — exception: ${e}`);
+		console.log(`  ❌ ${label} - exception: ${e}`);
 		return;
 	}
 	try {
@@ -432,7 +432,7 @@ withRepo("artifact card: new file created in worktree, diff produced, applied to
 	ok(diff.length > 0, "artifact diff is non-empty");
 	ok(diff.includes(artifactPath), "diff references the artifact file path");
 	ok(diff.includes("+Findings here."), "diff contains the artifact content");
-	// Apply to main — this is what happens on human File
+	// Apply to main - this is what happens on human File
 	const diffFile = join(clone, "..", "card.diff");
 	fs.writeFileSync(diffFile, diff, "utf8");
 	gitApply(clone, diffFile);
@@ -480,7 +480,7 @@ withRepo("second apply of same diff fails (demonstrates need for one-shot guard)
 	} catch (e) {
 		threw = true;
 	}
-	ok(threw, "second apply of the same diff THROWS (patch already applied — one-shot guard is load-bearing)");
+	ok(threw, "second apply of the same diff THROWS (patch already applied - one-shot guard is load-bearing)");
 });
 
 console.log("\n── Slice 4: reload-required scenario (engine-touched detection) ──");
@@ -519,7 +519,7 @@ withRepo("reset worktree after making changes, verify clean state", (clone) => {
 	ok(read(join(wt, "README.md")).includes("Git-Ops Test Repo"), "original content restored");
 });
 
-console.log("\n── Harvest captures a worker's COMMIT (diff-vs-base — the merge-back fix) ──");
+console.log("\n── Harvest captures a worker's COMMIT (diff-vs-base - the merge-back fix) ──");
 
 function asWorker(wt: string): void {
 	execSync(`git -C ${wt} config user.email "worker@holdco"`, GIT);

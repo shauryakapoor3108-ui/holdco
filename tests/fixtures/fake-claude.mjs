@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fake-claude.mjs — a hermetic stand-in for the `claude` CLI speaking the same
+// fake-claude.mjs - a hermetic stand-in for the `claude` CLI speaking the same
 // stream-json protocol the ClaudeCodeHarness adapter drives. Plain Node, zero deps.
 //
 // Behavior:
@@ -25,7 +25,7 @@ for (let i = 0; i < args.length; i++) {
 	if (a === "--settings") {
 		settingsPath = args[++i] ?? null;
 	} else if (a === "--output-format" || a === "--input-format" || a === "--model") {
-		i++; // flag with a value — ignore the value
+		i++; // flag with a value - ignore the value
 	}
 	// -p / --verbose / --dangerously-skip-permissions / anything else: ignore
 }

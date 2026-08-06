@@ -1,4 +1,4 @@
-// frontmatter.ts — parse cards + surgical, field-preserving status writes.
+// frontmatter.ts - parse cards + surgical, field-preserving status writes.
 //
 // CRITICAL (test 13): writeStatus touches ONLY the `status:` line plus additive
 // annotation lines and an appended body-log line. cost_total / log / outcome /
@@ -20,7 +20,7 @@ export interface ParsedCard {
 	isCard: boolean; // frontmatter `type` === "card"
 	id: string; // frontmatter `id` || basename
 	status: string; // cleaned scalar value ("" if missing/empty)
-	cardType: string; // raw `card_type` scalar ("" if missing/empty) — D3 governance axis
+	cardType: string; // raw `card_type` scalar ("" if missing/empty) - D3 governance axis
 }
 
 /** Strip surrounding quotes and any trailing unquoted `# comment`. */
@@ -63,7 +63,7 @@ export function parseCard(file: string): ParsedCard {
  * `file`, or null if the file / frontmatter / key is absent. Used by the
  * reconciler's idempotency gate for the `card_type_invalid` annotation (D3 §4):
  * the gate compares the stored marker against the exact serialized string it
- * would write (`JSON.stringify(raw)`). It MUST be raw — `cleanScalar`'s
+ * would write (`JSON.stringify(raw)`). It MUST be raw - `cleanScalar`'s
  * quote-stripping is asymmetric for values containing an embedded quote /
  * backslash, which would defeat the comparison and cause a re-write every sweep.
  */
@@ -86,7 +86,7 @@ export function readRawField(file: string, key: string): string | null {
 // `status`). They are read here for `/commit-goal` (goal + depends_on) and the
 // goal-gate reactor (depends_on + a dep's status via parseCard), and `goal_blocked`
 // is written ONLY by the reactor via `writeGoalBlocked` below. Byte convention:
-// the canonical `depends_on` form is inline flow — `depends_on: [a, b]` — a SINGLE
+// the canonical `depends_on` form is inline flow - `depends_on: [a, b]` - a SINGLE
 // line, so it survives every flat frontmatter parser round-trip (this file's
 // `rawField`, fleet's LINE_RE, `updatePlanningFields`) without dropping edges.
 
@@ -153,10 +153,10 @@ export function readGoalBlocked(file: string): string {
 }
 
 /**
- * Write the reactor-owned advisory `goal_blocked` field (goal-system ADR §5) — the ONLY field the
+ * Write the reactor-owned advisory `goal_blocked` field (goal-system ADR §5) - the ONLY field the
  * goal-gate reactor may write. It NEVER writes `status` (the single-writer-of-status seam holds: the
  * reactor OFFERS `goal:release`, the engine writes status). Field-preserving + surgical (upsert the
- * one line, every sibling byte-identical), synchronous, plus one audit log line — exactly `annotate`'s
+ * one line, every sibling byte-identical), synchronous, plus one audit log line - exactly `annotate`'s
  * loop-suppression contract. Serialized quoted (`goal_blocked: "<dep> is <status>"`) so
  * `readGoalBlocked` round-trips a value containing spaces.
  */
@@ -181,7 +181,7 @@ export function writeStatus(file: string, newStatus: string, opts: WriteOpts = {
 	const fullMatch = m[0]; // includes leading --- and trailing ---
 	let block = m[1]; // inner YAML
 
-	// 1. Replace (or insert) the `status:` line — surgical, comment-preserving.
+	// 1. Replace (or insert) the `status:` line - surgical, comment-preserving.
 	const statusLineRe = /^(status:)([ \t]*)(.*)$/m;
 	if (statusLineRe.test(block)) {
 		block = block.replace(statusLineRe, (_full, key: string, sp: string, rest: string) => {
@@ -193,7 +193,7 @@ export function writeStatus(file: string, newStatus: string, opts: WriteOpts = {
 		block = `${block}\nstatus: ${newStatus}`;
 	}
 
-	// 2. Additive annotations — replace the line if present, else append.
+	// 2. Additive annotations - replace the line if present, else append.
 	for (const [k, v] of Object.entries(opts.annotations ?? {})) {
 		const re = new RegExp(`^${k}:[ \\t]*.*$`, "m");
 		const line = `${k}: ${v}`;
@@ -213,7 +213,7 @@ export function writeStatus(file: string, newStatus: string, opts: WriteOpts = {
 /**
  * Non-destructive frontmatter annotation (D3 §4). Writes additive frontmatter
  * fields (replace-if-present, else append) and an optional appended body-log
- * line — and NEVER touches the `status:` line. It is exactly `writeStatus` minus
+ * line - and NEVER touches the `status:` line. It is exactly `writeStatus` minus
  * the status-replacement step, so a present-but-invalid `card_type` can be
  * surfaced without clobbering a valid `status` (the round-1 Pi flag). Same
  * loop-suppression contract as `writeStatus`: synchronous, status byte-identical.
@@ -224,9 +224,9 @@ export function annotate(file: string, annotations: Record<string, string>, logL
 	if (!m) throw new Error(`annotate: no frontmatter in ${file}`);
 
 	const fullMatch = m[0]; // includes leading --- and trailing ---
-	let block = m[1]; // inner YAML — status line is NEVER read or rewritten here
+	let block = m[1]; // inner YAML - status line is NEVER read or rewritten here
 
-	// Additive annotations only — replace the line if present, else append.
+	// Additive annotations only - replace the line if present, else append.
 	for (const [k, v] of Object.entries(annotations)) {
 		const re = new RegExp(`^${k}:[ \\t]*.*$`, "m");
 		const line = `${k}: ${v}`;
@@ -245,7 +245,7 @@ export function annotate(file: string, annotations: Record<string, string>, logL
 /**
  * Surgically upsert a body `## <header>` section, preserving every sibling section
  * (and NEVER touching frontmatter or `## Reconciler Log`). Pure: takes the full file
- * text, returns the new text — the caller does the read/write + the rewrite-on-delta
+ * text, returns the new text - the caller does the read/write + the rewrite-on-delta
  * gate (so an unchanged section is a no-op write). Used by `card-preview` for the
  * deterministic `## Preview` block (spec D4 Deliverable 1).
  *
@@ -282,7 +282,7 @@ export function upsertBodySection(text: string, header: string, content: string)
  * APPEND `line` as a new trailing line to a `## <header>` body section (create the section if
  * absent), reusing `upsertBodySection`'s section-boundary + placement discipline. Pure: takes full
  * card text, returns new text (the caller wraps it in an atomic write). This is the append-mode
- * counterpart of `upsertBodySection` (which REPLACES) — used for `## Discussion`, an append-only
+ * counterpart of `upsertBodySection` (which REPLACES) - used for `## Discussion`, an append-only
  * thread that both the control-inbox drainer (human comments) and the auto-planner (its Q&A) grow.
  */
 export function appendBodySection(text: string, header: string, line: string): string {
@@ -304,13 +304,13 @@ export function appendBodySection(text: string, header: string, line: string): s
  * Surgically DELETE a single frontmatter `key:` line, field-preserving (every other
  * field byte-identical), one atomic write. The minimal field-delete primitive
  * `frontmatter.ts` lacked (`writeStatus`/`annotate` only add/replace). Used by the
- * reconciler's §6 stale-mark clear (D4). **Hard-throws on `key === "status"`** — the
+ * reconciler's §6 stale-mark clear (D4). **Hard-throws on `key === "status"`** - the
  * single-writer-of-status seam is never deletable either (same guard discipline as
  * `card-write.ts`'s `setField`). Throws if the file has no frontmatter.
  */
 export function removeField(file: string, key: string): void {
 	if (key === "status") {
-		throw new Error("removeField: the single-writer-of-status seam — `status` is never deletable");
+		throw new Error("removeField: the single-writer-of-status seam - `status` is never deletable");
 	}
 	const text = fs.readFileSync(file, "utf8");
 	const m = text.match(FM_RE);
@@ -324,21 +324,21 @@ export function removeField(file: string, key: string): void {
 }
 
 /**
- * The SANCTIONED human `card_type` reclassify primitive (D4 Deliverable 2) — distinct
+ * The SANCTIONED human `card_type` reclassify primitive (D4 Deliverable 2) - distinct
  * from the model's blocked `update_card` path (`card-write.ts:144-145` stays a soft
  * single-set no-op; only this control may overwrite a valid `card_type`). It:
- *   - validates `cardType ∈ CARD_TYPES` via `isValidCardType` (single source of truth) —
+ *   - validates `cardType ∈ CARD_TYPES` via `isValidCardType` (single source of truth) -
  *     THROWS on free text / invalid (the `/reclassify` command pre-validates + lists the
  *     valid set, so a throw here is a programming error, not a human typo);
  *   - is ALLOWED to overwrite an already-valid `card_type` (the whole point);
- *   - writes ONLY the `card_type` field — field-preserving + atomic; NEVER writes
+ *   - writes ONLY the `card_type` field - field-preserving + atomic; NEVER writes
  *     `status` (the single-writer-of-status seam is untouched);
  *   - clears a stale `card_type_invalid` mark INLINE in the SAME atomic write (spec
  *     addendum A): doing it in one write closes the audit-attribution race with the
  *     reconciler-side §6 clear (a 2-write set-then-remove would expose a valid+marked
  *     state a sweep could audit as "reconciled" instead of "(human)");
  *   - appends one `card_type reclassified <old> → <new> (human)` audit line.
- * It is NOT registered as a model tool — invoked only from the human `/reclassify`.
+ * It is NOT registered as a model tool - invoked only from the human `/reclassify`.
  */
 export function reclassifyCardType(file: string, cardType: string): void {
 	if (!isValidCardType(cardType)) {
@@ -350,11 +350,11 @@ export function reclassifyCardType(file: string, cardType: string): void {
 	const fullMatch = m[0];
 	let block = m[1];
 	const old = cleanScalar(rawField(block, "card_type") ?? "") || "(unset)";
-	// 1. Set card_type — replace the line if present, else append. NEVER touches `status`.
+	// 1. Set card_type - replace the line if present, else append. NEVER touches `status`.
 	const ctRe = /^card_type:[ \t]*.*$/m;
 	const ctLine = `card_type: ${cardType}`;
 	block = ctRe.test(block) ? block.replace(ctRe, () => ctLine) : `${block}\n${ctLine}`;
-	// 2. Clear a stale card_type_invalid mark in THIS write (addendum A — atomic).
+	// 2. Clear a stale card_type_invalid mark in THIS write (addendum A - atomic).
 	block = block.replace(/^card_type_invalid:[ \t]*.*\n?/m, "");
 	const newFm = `---\n${block}\n---`;
 	let out = text.replace(fullMatch, () => newFm);
@@ -364,7 +364,7 @@ export function reclassifyCardType(file: string, cardType: string): void {
 }
 
 function appendLog(text: string, line: string): string {
-	const entry = `- ${new Date().toISOString()} — ${line}`;
+	const entry = `- ${new Date().toISOString()} - ${line}`;
 	const header = "## Reconciler Log";
 	const trimmed = text.replace(/\s*$/, "");
 	if (text.includes(header)) return `${trimmed}\n${entry}\n`;

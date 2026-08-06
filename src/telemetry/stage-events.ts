@@ -1,19 +1,19 @@
-// stage-events.ts — StageEvent telemetry: the deck's wire contract, emitted at
+// stage-events.ts - StageEvent telemetry: the deck's wire contract, emitted at
 // the engine's harness boundary.
 //
 // StageEvent mirrors schema/stage-event.schema.json EXACTLY (strict contract,
 // additionalProperties false, version 1). Every event the engine emits must
-// validate against that schema — the obs server re-validates on ingest, so a
+// validate against that schema - the obs server re-validates on ingest, so a
 // drifted emitter shows up as rejected[] instead of corrupting the deck.
 //
 // run_id conventions:
 //   • worker/harvest/review-gate events carry the PER-SPAWN runId nonce (the
-//     pool's correlation tag) — one run per spawn, retries are separate runs.
-//   • engine-level events (approval gate, classify) carry the CARD id — the
+//     pool's correlation tag) - one run per spawn, retries are separate runs.
+//   • engine-level events (approval gate, classify) carry the CARD id - the
 //     deck groups by card_id, so both families join on card_id.
 //
 // Sinks are fire-and-forget: emit() must NEVER throw and never block. A dead
-// telemetry pipe degrades to silence — the board's correctness never depends
+// telemetry pipe degrades to silence - the board's correctness never depends
 // on an event landing.
 
 import type { EngineHost } from "../host/host.ts";
@@ -47,7 +47,7 @@ export interface StageEventSink {
 	emit(ev: StageEvent): void;
 }
 
-// ── HostLogSink — every event lands on the host log (always wired) ───────────
+// ── HostLogSink - every event lands on the host log (always wired) ───────────
 
 export class HostLogSink implements StageEventSink {
 	private readonly host: EngineHost;
@@ -65,7 +65,7 @@ export class HostLogSink implements StageEventSink {
 	}
 }
 
-// ── HttpSink — POST one event to the obs server (fire-and-forget) ────────────
+// ── HttpSink - POST one event to the obs server (fire-and-forget) ────────────
 
 export interface HttpSinkOpts {
 	/** Obs server base URL, e.g. http://127.0.0.1:43190 (no trailing slash needed). */
@@ -73,7 +73,7 @@ export interface HttpSinkOpts {
 	token?: string;
 	/** Injectable for tests. */
 	fetchFn?: typeof fetch;
-	/** Short timeout — telemetry must never hold the engine hostage. */
+	/** Short timeout - telemetry must never hold the engine hostage. */
 	timeoutMs?: number;
 }
 
@@ -118,11 +118,11 @@ export class HttpSink implements StageEventSink {
 	private warnOnce(detail: string): void {
 		if (this.warned) return;
 		this.warned = true;
-		console.error(`[warning] stage-event http sink: POST ${this.url}/stage-events failed (${detail}) — further drops are silent`);
+		console.error(`[warning] stage-event http sink: POST ${this.url}/stage-events failed (${detail}) - further drops are silent`);
 	}
 }
 
-// ── CompositeSink — fan one event out to several sinks ───────────────────────
+// ── CompositeSink - fan one event out to several sinks ───────────────────────
 
 export class CompositeSink implements StageEventSink {
 	private readonly sinks: StageEventSink[];
@@ -142,7 +142,7 @@ export class CompositeSink implements StageEventSink {
 	}
 }
 
-// ── MemorySink — test helper: capture every emission in order ────────────────
+// ── MemorySink - test helper: capture every emission in order ────────────────
 
 export class MemorySink implements StageEventSink {
 	readonly events: StageEvent[] = [];

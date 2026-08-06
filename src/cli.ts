@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// cli.ts — the holdco daemon CLI.
+// cli.ts - the holdco daemon CLI.
 //
 //   holdco serve [--cards-dir DIR] [--sweep-ms N] [--events-off] [--no-exec]
 //                [--worker-harness NAME] [--model M] [--max-slots N]
 //                [--card-budget-usd N] [--watchdog-ms N] [--scoped-base DIR]
 //       Run the engine: single-owner lease, startup recovery, reconcile loop,
-//       and (unless --no-exec) the execution orchestrator — approved cards are
+//       and (unless --no-exec) the execution orchestrator - approved cards are
 //       drained into isolated worktrees and executed by the configured harness
 //       (default: claude-code, headless `claude` sessions).
 //                [--obs-url URL] [--obs-token T]
@@ -100,7 +100,7 @@ switch (cmd) {
 			};
 			const cwd = process.cwd();
 			const scopedBase = host.config.get("scoped-base") || DEFAULT_SCOPED_BASE;
-			// Registered adapters. Pi needs a live herdr session + obs server — it joins
+			// Registered adapters. Pi needs a live herdr session + obs server - it joins
 			// the registry when its shell wires it in (or a later `--pi` bring-up); a
 			// card asking for an unregistered harness escalates loudly at dispatch.
 			const harnesses: Record<string, Harness> = {
@@ -149,11 +149,11 @@ switch (cmd) {
 			console.error(`holdco: executing via ${host.config.get("worker-harness") || "claude-code"} harness (--no-exec to disable)`);
 		}
 
-		// ── intake connectors (the way IN — mirrors the harness seam on the way out) ──
+		// ── intake connectors (the way IN - mirrors the harness seam on the way out) ──
 		// Discord: --discord-channels id1,id2 + env DISCORD_BOT_TOKEN.
 		// IMAP:    --imap-host H [--imap-port N] [--imap-mailbox M] + env IMAP_USER/IMAP_PASSWORD.
 		// Every drafted card lands at Draft with provenance {surfaced_by, source_type,
-		// source_ref, drafter} — a human promotes it into the funnel.
+		// source_ref, drafter} - a human promotes it into the funnel.
 		const stops: Array<() => Promise<void>> = [];
 		{
 			const log = (event: string, data: Record<string, unknown>) => host.log.entry("card-engine-log", { event, ...data, ts: new Date().toISOString() });
@@ -211,7 +211,7 @@ switch (cmd) {
 	case "obs": {
 		// The observability server: StageEvent ingest + SSE fan-out. The boot
 		// banner (URL + token + db, printed by startObsServer) mirrors the source
-		// server's, minus the UI URL — the deck replaces that UI.
+		// server's, minus the UI URL - the deck replaces that UI.
 		const dbFlag = flags.db || "obs.db";
 		const srv = await startObsServer({
 			port: flags.port ? Number(flags.port) : 43190,
@@ -272,12 +272,12 @@ switch (cmd) {
 		console.log(`${basename(file)}: ${cur.status} → ${status}`);
 		const targets = legalTargets(cur.status);
 		if (!targets.includes(status)) {
-			console.error(`note: ${cur.status} → ${status} is not in the legal matrix — a running engine will revert it`);
+			console.error(`note: ${cur.status} → ${status} is not in the legal matrix - a running engine will revert it`);
 		}
 		break;
 	}
 	default:
-		console.log(`holdco — harness-agnostic multi-agent engine
+		console.log(`holdco - harness-agnostic multi-agent engine
 
   holdco serve [--cards-dir DIR] [--sweep-ms N] [--events-off] [--obs-url URL] [--obs-token T]
   holdco obs [--port N] [--db PATH] [--token T]

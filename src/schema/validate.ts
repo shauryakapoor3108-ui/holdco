@@ -1,20 +1,20 @@
-// validate.ts — minimal, dependency-free JSON Schema validator.
+// validate.ts - minimal, dependency-free JSON Schema validator.
 //
 // WHY THIS EXISTS: holdco has a zero-runtime-dependency rule, so pulling in
 // ajv (or any json-schema library) is off the table. This module implements
-// EXACTLY the draft-07 subset that the schemas under schema/ use — nothing
+// EXACTLY the draft-07 subset that the schemas under schema/ use - nothing
 // more:
 //
-//   type       — "string" | "number" | "integer" | "boolean" | "object" |
+//   type       - "string" | "number" | "integer" | "boolean" | "object" |
 //                "array" | "null", or an array of those
 //   enum, const
 //   properties, required, additionalProperties (boolean form only)
-//   items      — single-schema form only (no tuple validation)
+//   items      - single-schema form only (no tuple validation)
 //   pattern, minimum, minLength
 //   anyOf
 //
 // Any keyword outside that list is intentionally ignored. Do NOT add new
-// keywords to files in schema/ without teaching this validator first —
+// keywords to files in schema/ without teaching this validator first -
 // tests/schema.test.ts exercises every keyword above and walks all fixtures.
 
 import * as fs from "node:fs";
@@ -74,7 +74,7 @@ function validateAt(schema: any, value: unknown, path: string, errors: string[])
 	if (schema === true || schema === null || schema === undefined) return;
 	const at = path || "/";
 
-	// anyOf — at least one branch must validate cleanly.
+	// anyOf - at least one branch must validate cleanly.
 	if (Array.isArray(schema.anyOf)) {
 		const matched = schema.anyOf.some((branch: any) => {
 			const sub: string[] = [];
@@ -86,7 +86,7 @@ function validateAt(schema: any, value: unknown, path: string, errors: string[])
 		}
 	}
 
-	// type — on mismatch, stop here: every further keyword would just cascade.
+	// type - on mismatch, stop here: every further keyword would just cascade.
 	if (schema.type !== undefined) {
 		const types: string[] = Array.isArray(schema.type) ? schema.type : [schema.type];
 		if (!types.some((t) => matchesType(t, value))) {

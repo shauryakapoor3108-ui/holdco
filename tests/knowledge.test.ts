@@ -1,6 +1,6 @@
-// knowledge.test.ts — the unified knowledge layer: governed dir scaffold,
+// knowledge.test.ts - the unified knowledge layer: governed dir scaffold,
 // single-source constraints, fail-safe permissions resolution, and the per-card
-// append-only message log — plus the pool integration (constraints + policy flow
+// append-only message log - plus the pool integration (constraints + policy flow
 // from the store into the SpawnRequest; lifecycle entries land in the log).
 // Run via `node tests/knowledge.test.ts`.
 

@@ -1,28 +1,28 @@
-// store.ts — the unified knowledge layer: ONE governed dir per board that every
+// store.ts - the unified knowledge layer: ONE governed dir per board that every
 // agent on every harness reads and writes through.
 //
 // The split this exists to kill: coding-harness memory (per-tool config files)
-// on one side, engine knowledge (vault/refs) on the other — two brains that
+// on one side, engine knowledge (vault/refs) on the other - two brains that
 // drift. Here there is one store:
 //
 //   knowledge/
-//     FILING.md          — the filing standard workers follow (seeded, human-owned)
-//     constraints.md     — single-source constraints; each harness adapter RENDERS
+//     FILING.md          - the filing standard workers follow (seeded, human-owned)
+//     constraints.md     - single-source constraints; each harness adapter RENDERS
 //                          this natively into its worker (Claude Code → system
 //                          prompt injection; Pi → task.md context injection).
 //                          Conformance-tested: an adapter must prove the text
 //                          reached its worker's delivered context.
-//     permissions.json   — single-source safety policy; adapters ENFORCE it
+//     permissions.json   - single-source safety policy; adapters ENFORCE it
 //                          natively (Claude Code → PreToolUse hook; Pi →
 //                          tool_call guard). `{worktree}`/`{scopedDir}` tokens
 //                          resolve per card at dispatch.
-//     messages/<id>.jsonl— per-card APPEND-ONLY message log: the shared channel
+//     messages/<id>.jsonl - per-card APPEND-ONLY message log: the shared channel
 //                          every agent participating in a card writes to (v1
 //                          substrate for v2 role-based agent teams).
-//     decisions/ refs/ … — filed artifacts, per FILING.md.
+//     decisions/ refs/ … - filed artifacts, per FILING.md.
 //
 // Loaders are tolerant in shape but LOUD + fail-safe in effect: a malformed
-// permissions.json never widens authority — the engine falls back to the
+// permissions.json never widens authority - the engine falls back to the
 // default deny posture and warns.
 
 import * as fs from "node:fs";
@@ -65,11 +65,11 @@ Every durable artifact a worker produces is FILED, not chatted:
 const SEED_CONSTRAINTS = `---
 version: ${KNOWLEDGE_SCHEMA_VERSION}
 ---
-# Constraints (single source — rendered into every worker, every harness)
+# Constraints (single source - rendered into every worker, every harness)
 
 - Work ONLY inside your assigned worktree. Your uncommitted diff is your output.
-- Never run git commit / push / merge / rebase — publishing is a human gate.
-- Never edit the card file or its status — the engine owns board state.
+- Never run git commit / push / merge / rebase - publishing is a human gate.
+- Never edit the card file or its status - the engine owns board state.
 - File durable artifacts per knowledge/FILING.md; do not leave results in chat.
 - End your final message with one line: \`OUTCOME: <what you produced and where>\`.
 `;
@@ -91,7 +91,7 @@ export class KnowledgeStore {
 		this.host = host ?? null;
 	}
 
-	/** Scaffold the governed dir (idempotent — existing files are never overwritten). */
+	/** Scaffold the governed dir (idempotent - existing files are never overwritten). */
 	ensure(): void {
 		fs.mkdirSync(join(this.root, "messages"), { recursive: true });
 		fs.mkdirSync(join(this.root, "decisions"), { recursive: true });
@@ -108,7 +108,7 @@ export class KnowledgeStore {
 
 	// ── constraints (single source, rendered per harness) ──────────────────────
 
-	/** The constraints text (frontmatter stripped) — what adapters must deliver
+	/** The constraints text (frontmatter stripped) - what adapters must deliver
 	 *  into every worker's context. "" when the file is absent. */
 	loadConstraints(): string {
 		try {
@@ -146,13 +146,13 @@ export class KnowledgeStore {
 			}
 			file = raw as PermissionsFile;
 		} catch (err) {
-			this.warn(`permissions.json unusable (${String(err)}) — falling back to the default deny posture`);
+			this.warn(`permissions.json unusable (${String(err)}) - falling back to the default deny posture`);
 			return fallback;
 		}
 		const resolve = (s: string) => s.replace(/\{worktree\}/g, scope.worktree).replace(/\{scopedDir\}/g, scope.scopedDir);
 		const writeScopes = file.writeScopes.map(resolve).filter((s) => s.startsWith("/"));
 		if (writeScopes.length === 0) {
-			this.warn("permissions.json resolved to zero absolute write scopes — falling back to the default deny posture");
+			this.warn("permissions.json resolved to zero absolute write scopes - falling back to the default deny posture");
 			return fallback;
 		}
 		return { writeScopes, denyCommands: file.denyCommands };
@@ -205,7 +205,7 @@ export class KnowledgeStore {
 				try {
 					out.push(JSON.parse(line));
 				} catch {
-					/* trailing partial line — skip */
+					/* trailing partial line - skip */
 				}
 			}
 			return out;

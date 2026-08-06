@@ -1,18 +1,18 @@
-// executor.ts — Phase 4 inline execution dispatcher (EngineHost port of the
+// executor.ts - Phase 4 inline execution dispatcher (EngineHost port of the
 // card-engine executor, Seam 3 + 4).
 //
 // Turns an APPROVED card into a completed one. D1: the dispatch trigger moved off
-// the detected `→ Executing` edge (humans no longer drag straight to Executing) —
+// the detected `→ Executing` edge (humans no longer drag straight to Executing) -
 // the engine's `queue:next` handler now writes `Queued → Executing` and calls
 // `dispatch` directly (gate already confirmed slot-free + idle + still-Queued). The
-// single host process then executes the task INLINE (blocking single-REPL — the
+// single host process then executes the task INLINE (blocking single-REPL - the
 // shell IS the REPL, there is no spawn) with observability already loaded; on
 // completion the engine transitions `Executing → Needs Review` and writes a
 // derived cost rollup (cost_total, tokens, duration_s, tool_calls, outcome) to
 // the card frontmatter.
 //
 // This is the EngineHost port: the Pi ExtensionAPI coupling is replaced by the
-// `ExecutorDeps` seam — `host` (events/log/notify via the EngineHost interface)
+// `ExecutorDeps` seam - `host` (events/log/notify via the EngineHost interface)
 // and `send` (fires the inline execution turn; the Pi shell passes
 // pi.sendUserMessage, a daemon passes a harness send).
 //
@@ -25,7 +25,7 @@
 // Completion correlation (settled in the spec's "Plan-verifier exchange"):
 //   - `agent_end` is the completion hook (fired ONCE per run, last event of the
 //     run). `turn_end` fires per-turn (many per run) so it is NOT the completion
-//     signal — usage is ACCUMULATED per turn_end and FINALIZED once on agent_end.
+//     signal - usage is ACCUMULATED per turn_end and FINALIZED once on agent_end.
 //   - Raw per-message usage is nested: `usage.cost?.total` + `usage.totalTokens`
 //     (camelCase) + `usage.input` / `usage.output`. The flat `cost_total` shape
 //     is the obs extension's normalized type, not the raw event payload.
@@ -38,7 +38,7 @@ import type { EngineHost } from "../host/host.ts";
 import { readRawField, writeStatus } from "./frontmatter.ts";
 import type { Reconciler } from "./reconciler.ts";
 
-/** Write a checkpoint heartbeat every N tool calls (or ≥60s — see CHECKPOINT_MS). */
+/** Write a checkpoint heartbeat every N tool calls (or ≥60s - see CHECKPOINT_MS). */
 const CHECKPOINT_EVERY_N_TOOLS = 5;
 const CHECKPOINT_MS = 60_000;
 /** Outcome fallback truncation when no explicit `OUTCOME:` line is present. */
@@ -48,7 +48,7 @@ const NARRATE_MS = 10_000;
 /** Circuit breaker: max dispatches of one card per session before a HARD STOP (runaway guard). */
 const MAX_DISPATCHES_PER_SESSION = 3;
 
-/** Escalation mechanism + error class (spec §7 instrumentation — "ship both, measure both"). */
+/** Escalation mechanism + error class (spec §7 instrumentation - "ship both, measure both"). */
 type EscalationMechanism = "agent_end-aborted" | "watchdog";
 type ErrorClass = "transient" | "terminal";
 
@@ -111,23 +111,23 @@ export class Executor {
 	/**
 	 * Called by the engine's `queue:next` handler after it has written
 	 * `Queued → Executing` (snapshot-synced) for the head card. Guards idle (defence
-	 * in depth — the handler already checked), reads the executable instruction, sets
+	 * in depth - the handler already checked), reads the executable instruction, sets
 	 * the slot, and fires the
 	 * execution turn (fire-and-return, no await). If there is no instruction, the
 	 * card is moved straight to Needs Review with an explanatory outcome (never run
 	 * an empty execution).
 	 */
 	dispatch(cardId: string, file: string, ctx?: { cwd?: string; isIdle?: () => boolean }): void {
-		// 1. Idle guard — never inject a turn mid-stream. The dispatch fires from the
+		// 1. Idle guard - never inject a turn mid-stream. The dispatch fires from the
 		//    sweep, which ticks independently of the shell's turn state. If the shell is
-		//    busy (a /capture restatement, or — already — this very execution), DEFER:
+		//    busy (a /capture restatement, or - already - this very execution), DEFER:
 		//    leave the card in Executing, do not dispatch this tick.
 		//    KNOWN Sprint-1 limitation (documented in the spec): a deferred card is
 		//    not re-dispatched automatically (snapshot already matches disk), so only
 		//    one card may be in Executing at a time. herdr multi-pane removes this in
-		//    Sprint 2 — same trigger, so seam-compatible.
+		//    Sprint 2 - same trigger, so seam-compatible.
 		if (this.slot) {
-			this.host.notify(`🃏 busy executing ${this.slot.id} — ${cardId} stays in Executing until it finishes`, "warning");
+			this.host.notify(`🃏 busy executing ${this.slot.id} - ${cardId} stays in Executing until it finishes`, "warning");
 			return;
 		}
 		if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
@@ -148,20 +148,20 @@ export class Executor {
 		// 2. No executable instruction → never run empty; file straight to review.
 		if (!instruction) {
 			this.finalizeNoBrief(cardId, file);
-			this.host.notify(`🃏 ${cardId} had no brief — moved to Needs Review (nothing to execute)`, "warning");
+			this.host.notify(`🃏 ${cardId} had no brief - moved to Needs Review (nothing to execute)`, "warning");
 			return;
 		}
 
 		// 2b. CIRCUIT BREAKER (hard cap on runaway re-execution). A card should be
 		//     dispatched at most a handful of times per session (a human may legitimately
 		//     re-run via Needs Review → … → approve). If it exceeds the cap, something is
-		//     re-creating Executing in a loop (a ghost reconciler, a 2nd engine on the dir) —
+		//     re-creating Executing in a loop (a ghost reconciler, a 2nd engine on the dir) -
 		//     HARD STOP it: halt:true + Needs Review, no execution, no more token burn.
 		//     /unhalt clears both the flag and this counter.
 		const dispatches = (this.dispatchCounts.get(cardId) ?? 0) + 1;
 		this.dispatchCounts.set(cardId, dispatches);
 		if (dispatches > MAX_DISPATCHES_PER_SESSION) {
-			const reason = `circuit breaker: ${dispatches - 1} dispatches in one session — halted (suspected re-execution loop)`;
+			const reason = `circuit breaker: ${dispatches - 1} dispatches in one session - halted (suspected re-execution loop)`;
 			writeStatus(file, "Needs Review", {
 				annotations: { halt: "true", interrupted: "true", outcome: JSON.stringify(reason) },
 				logLine: `CIRCUIT BREAKER: halted after ${dispatches - 1} dispatches → Needs Review, halt:true`,
@@ -173,7 +173,7 @@ export class Executor {
 				dispatches: dispatches - 1,
 				ts: new Date().toISOString(),
 			});
-			this.host.notify(`🛑 circuit breaker: ${cardId} halted after ${dispatches - 1} runs this session — /unhalt ${cardId} to clear`, "warning");
+			this.host.notify(`🛑 circuit breaker: ${cardId} halted after ${dispatches - 1} runs this session - /unhalt ${cardId} to clear`, "warning");
 			this.host.events.emit("exec:idle", {});
 			return;
 		}
@@ -209,7 +209,7 @@ export class Executor {
 			file: relPath,
 			ts: new Date().toISOString(),
 		});
-		this.host.notify(`🃏 Executing ${cardId} — busy, watch obs for live progress`, "info");
+		this.host.notify(`🃏 Executing ${cardId} - busy, watch obs for live progress`, "info");
 
 		// 4. Fire the execution turn and RETURN (no await). The agent runs inline;
 		//    obs records it live. Completion is finalized on agent_end.
@@ -282,7 +282,7 @@ export class Executor {
 
 		// D1 escalation mechanism 1: an aborted signal at agent_end ⇒ the run was
 		// interrupted (the shell exposes no fatal-error event; ctx.signal is the abort
-		// signal). This IS the Tier-2 escalation destination — the card lands at Needs
+		// signal). This IS the Tier-2 escalation destination - the card lands at Needs
 		// Review for the human, annotated, and is classed `transient` (an abort is retryable).
 		const aborted = ctx?.signal?.aborted === true;
 
@@ -307,25 +307,25 @@ export class Executor {
 				diffDetail = "git check unavailable";
 			}
 			if (!diffChanged) {
-				outcome = `${outcome} [⚠ no code change produced — ${diffDetail}]`;
+				outcome = `${outcome} [⚠ no code change produced - ${diffDetail}]`;
 			}
 		} else {
 			// ARTIFACT card: did a new artifact appear in the domain's filing dir?
 			const filedNow = listMarkdown(slot.filingDir);
 			for (const f of filedNow) if (!slot.filesBefore.has(f)) newFiles.push(relative(slot.cwd, f));
 			if (newFiles.length === 0) {
-				outcome = `${outcome} [⚠ no new artifact found under ${relative(slot.cwd, slot.filingDir)} — filing not verified]`;
+				outcome = `${outcome} [⚠ no new artifact found under ${relative(slot.cwd, slot.filingDir)} - filing not verified]`;
 			}
 		}
 		const abortReason = "execution aborted (ctx.signal) before normal completion";
 		if (aborted) outcome = `${outcome} [⚠ ${abortReason}]`;
 
 		const annotations: Record<string, string> = {
-			cost_total: String(cost), // bare number — Dataview-aggregatable
+			cost_total: String(cost), // bare number - Dataview-aggregatable
 			tokens: String(tokens),
 			duration_s: String(durationS),
 			tool_calls: String(slot.toolCalls),
-			outcome: JSON.stringify(outcome), // quoted scalar — free text is YAML-safe
+			outcome: JSON.stringify(outcome), // quoted scalar - free text is YAML-safe
 		};
 		if (aborted) annotations.interrupted = "aborted";
 
@@ -364,7 +364,7 @@ export class Executor {
 		if (aborted) this.escalate(slot.id, "agent_end-aborted", "transient", abortReason);
 
 		this.slot = null;
-		// Latency hint: the slot just cleared — let the drain offer the next head now.
+		// Latency hint: the slot just cleared - let the drain offer the next head now.
 		this.host.events.emit("exec:idle", {});
 	}
 
@@ -391,9 +391,9 @@ export class Executor {
 				tokens: "0",
 				duration_s: "0",
 				tool_calls: "0",
-				outcome: JSON.stringify("no brief — nothing to execute"),
+				outcome: JSON.stringify("no brief - nothing to execute"),
 			},
-			logLine: "execution skipped: no brief — Executing → Needs Review",
+			logLine: "execution skipped: no brief - Executing → Needs Review",
 		});
 		this.reconciler.snapshot.set(cardId, "Needs Review");
 		this.host.log.entry("card-engine-log", {
@@ -401,7 +401,7 @@ export class Executor {
 			card: cardId,
 			ts: new Date().toISOString(),
 		});
-		// Latency hint: nothing ran (slot never set) — free the drain to advance.
+		// Latency hint: nothing ran (slot never set) - free the drain to advance.
 		this.host.events.emit("exec:idle", {});
 	}
 
@@ -417,7 +417,7 @@ export class Executor {
 	 * No-op while busy: a live slot means the run is healthy or finalizing normally.
 	 * The threshold MUST exceed the checkpoint cadence (5 tools / 60s) so a healthy
 	 * long run (fresh checkpoints) is never escalated. A card with NO measurable
-	 * checkpoint is left to boot-time `startupRecovery` — this watchdog only acts on
+	 * checkpoint is left to boot-time `startupRecovery` - this watchdog only acts on
 	 * a stale-but-present checkpoint, the case the missing fatal-error event drops.
 	 */
 	watchdog(watchdogMs: number): void {
@@ -445,11 +445,11 @@ export class Executor {
 	}
 
 	/**
-	 * Escalation instrumentation (spec §7 — "ship both, measure both"). Records WHICH
+	 * Escalation instrumentation (spec §7 - "ship both, measure both"). Records WHICH
 	 * mechanism fired (`agent_end-aborted` vs `watchdog`) and an error class
 	 * (`transient`/retryable vs `terminal`/escalate, the Cloudflare resilience signal)
 	 * so abort/error rates and the two-mechanism trade-off are measurable from the log.
-	 * D1 only classifies + escalates — retry/fallback actions are a later phase.
+	 * D1 only classifies + escalates - retry/fallback actions are a later phase.
 	 */
 	private escalate(card: string, mechanism: EscalationMechanism, errorClass: ErrorClass, reason: string): void {
 		this.host.log.entry("card-engine-log", {
@@ -481,10 +481,10 @@ export class Executor {
 				`- Read knowledge/FILING.md for filing conventions (though you will NOT write a markdown artifact).\n\n` +
 				`DO THE WORK:\n` +
 				`- Apply the edits to the named files. Run the verify command(s).\n` +
-				`- Do NOT write a spec, design doc, or any knowledge/ or refs/ artifact — your output is the CODE CHANGE ITSELF.\n\n` +
+				`- Do NOT write a spec, design doc, or any knowledge/ or refs/ artifact - your output is the CODE CHANGE ITSELF.\n\n` +
 				`COMPLETION CONTRACT (follow exactly):\n` +
 				`- End your FINAL message with one line: \`OUTCOME: <files changed + verify result>\`.\n` +
-				`- Do NOT change this card's status — the engine moves it to Needs Review when you finish.\n` +
+				`- Do NOT change this card's status - the engine moves it to Needs Review when you finish.\n` +
 				`- Do NOT edit the card file ${slot.relPath}.`
 			);
 		}
@@ -495,13 +495,13 @@ export class Executor {
 			`INSTRUCTION:\n${slot.instruction}\n\n` +
 			`LOAD CONTEXT FIRST:\n` +
 			`- Read ${domainCtx} and load the refs/ it points to as the task needs.\n` +
-			`- Read knowledge/FILING.md — every artifact you write MUST follow it (required frontmatter, kebab-case filename, correct placement: ${filingTarget}).\n\n` +
+			`- Read knowledge/FILING.md - every artifact you write MUST follow it (required frontmatter, kebab-case filename, correct placement: ${filingTarget}).\n\n` +
 			`DO THE WORK:\n` +
 			`- Execute the instruction and FILE the resulting durable artifact(s) per FILING.md. Produce real artifacts; do not merely describe what you would do.\n\n` +
 			`COMPLETION CONTRACT (follow exactly):\n` +
 			`- End your FINAL message with one line: \`OUTCOME: <one-line summary of what you produced and where it was filed>\`.\n` +
-			`- Do NOT change this card's status — the engine moves it to Needs Review when you finish.\n` +
-			`- Do NOT edit the card file ${slot.relPath} — the engine writes the cost rollup there. File your work elsewhere per FILING.md.`
+			`- Do NOT change this card's status - the engine moves it to Needs Review when you finish.\n` +
+			`- Do NOT edit the card file ${slot.relPath} - the engine writes the cost rollup there. File your work elsewhere per FILING.md.`
 		);
 	}
 }
@@ -562,7 +562,7 @@ function readSection(text: string, header: string): string {
  *   3. the `## Restatement` body, 4. the `## Intent` body. "" if none.
  *
  * CRITICAL: `## Restatement` is the HUMAN'S latest correction (reject-with-reason). When a brief
- * exists it must ACCOMPANY the brief verbatim, never be shadowed by it — the planner's paraphrase
+ * exists it must ACCOMPANY the brief verbatim, never be shadowed by it - the planner's paraphrase
  * has already dropped a human constraint once (round-2 README rebuilt with the exact frontmatter
  * the human rejected, 2026-07-13). The worker always sees the human's own words.
  */
@@ -584,7 +584,7 @@ export function readInstruction(file: string): string {
 /** Append the human's ## Restatement to an instruction as explicit hard constraints. */
 function withHumanConstraints(instruction: string, restatement: string): string {
 	if (!restatement) return instruction;
-	return `${instruction}\n\n## Human corrections — HARD constraints (verbatim; these override anything above)\n${restatement}`;
+	return `${instruction}\n\n## Human corrections - HARD constraints (verbatim; these override anything above)\n${restatement}`;
 }
 
 /** Where a domain's artifacts are filed (FILING.md): domain → refs/, root → knowledge/. */

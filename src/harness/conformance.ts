@@ -1,17 +1,17 @@
-// conformance.ts — the executable definition of "a working Harness adapter".
+// conformance.ts - the executable definition of "a working Harness adapter".
 //
 // An adapter passes conformance when it proves, against its own transport (real
 // or faked by the caller's ConformanceWorld):
-//   1. lifecycle transitions — spawn → (starting|working) → done after the run
+//   1. lifecycle transitions - spawn → (starting|working) → done after the run
 //      completes; never "done" before the work happened
-//   2. prompt artifact — spawn writes the brief to a durable prompt ref
-//   3. timeout-returns-value — a broken transport makes poll() RETURN
+//   2. prompt artifact - spawn writes the brief to a durable prompt ref
+//   3. timeout-returns-value - a broken transport makes poll() RETURN
 //      ("unknown"/"failed"), never throw (the engine's sweep must survive)
-//   4. telemetry — collect() yields usage (tokens + cost), a durable transcript
+//   4. telemetry - collect() yields usage (tokens + cost), a durable transcript
 //      ref, and the worker's OUTCOME line (deck parity depends on this)
-//   5. safety-policy enforcement — a policy-violating action is BLOCKED by the
+//   5. safety-policy enforcement - a policy-violating action is BLOCKED by the
 //      adapter's NATIVE mechanism (hook / guard extension / sandbox)
-//   6. dispose idempotency — dispose twice, no throw; evidence survives teardown
+//   6. dispose idempotency - dispose twice, no throw; evidence survives teardown
 //
 // The suite is shipped (not test-only) so a contributor adding a Codex adapter
 // runs exactly this against their implementation. No test-framework dependency:
@@ -72,7 +72,7 @@ export async function runConformance(world: ConformanceWorld): Promise<Conforman
 	const CONSTRAINT_MARKER = "CONFORMANCE-CONSTRAINT-7f3a: file artifacts, never chat them.";
 	const req: SpawnRequest = {
 		workspace: ws,
-		instruction: "Conformance run: no real work — follow the completion contract when told.",
+		instruction: "Conformance run: no real work - follow the completion contract when told.",
 		card: { id: ws.cardId, domain: "conformance", cardType: "ops" },
 		runId: `${ws.cardId}-conformance-${Math.random().toString(36).slice(2, 8)}`,
 		model: world.model,

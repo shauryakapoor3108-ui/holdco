@@ -1,4 +1,4 @@
-// harness-claude-code.test.ts — the Claude Code adapter against (a) the guard
+// harness-claude-code.test.ts - the Claude Code adapter against (a) the guard
 // verdict function directly, (b) the shipped conformance suite driven by a
 // hermetic fake CLI speaking the real stream-json protocol, and (c) mid-run
 // inject with usage accumulation across turns.
@@ -151,7 +151,7 @@ async function pollUntil(session: HarnessSession, want: string, tries = 50): Pro
 async function main(): Promise<void> {
 	console.log("── conformance suite (fake claude CLI)");
 	const checks = await runConformance(world);
-	for (const c of checks) ok(c.ok, `${c.id} — ${c.detail}`);
+	for (const c of checks) ok(c.ok, `${c.id} - ${c.detail}`);
 
 	// ── (c) inject: second turn, usage accumulates ─────────────────────────────
 	console.log("── inject (multi-turn)");

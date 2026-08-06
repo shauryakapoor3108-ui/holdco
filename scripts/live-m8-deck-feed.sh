@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# live-m8-deck-feed.sh — M8 live proof (run manually: `bash scripts/live-m8-deck-feed.sh`).
+# live-m8-deck-feed.sh - M8 live proof (run manually: `bash scripts/live-m8-deck-feed.sh`).
 #
 # The deck's complete data path, live and with zero real data: `holdco obs` +
 # `holdco replay` (deck demo mode, docs/DECK.md). The synthetic five-card
 # fixture is ingested through the real POST path, lands in SQLite (run
-# rollups queryable), and every event is delivered over the live SSE stream —
+# rollups queryable), and every event is delivered over the live SSE stream -
 # exactly what the externally-built deck UI will consume. No model spend.
 set -euo pipefail
 
@@ -37,9 +37,9 @@ echo "$RUNS" | head -c 600; echo
 echo
 echo "cards in rollup: $CARDS · SSE frames: $FRAMES / $TOTAL fixture events"
 if [ "$CARDS" -ge 5 ] && [ "$FRAMES" -eq "$TOTAL" ]; then
-	echo "✅ M8 LIVE PROOF PASSED — synthetic board ingested, rollups queryable, full replay delivered over live SSE."
+	echo "✅ M8 LIVE PROOF PASSED - synthetic board ingested, rollups queryable, full replay delivered over live SSE."
 	rm -rf "$WORK"
 else
-	echo "❌ M8 LIVE PROOF FAILED — inspect $WORK"
+	echo "❌ M8 LIVE PROOF FAILED - inspect $WORK"
 	exit 1
 fi

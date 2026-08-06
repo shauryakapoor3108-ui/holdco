@@ -1,8 +1,8 @@
-// reconciler.ts — snapshot-diff reconciliation + state-machine guards.
+// reconciler.ts - snapshot-diff reconciliation + state-machine guards.
 //
 // Built from the proven tasks/phase0/reconcile-watch.mjs logic (frontmatter
 // parse + snapshot-diff). Differences: cards-only (no board-file/mirror per ADR
-// Addendum e), and it ENFORCES — auto-revert on illegal, quarantine on invalid,
+// Addendum e), and it ENFORCES - auto-revert on illegal, quarantine on invalid,
 // orphan recovery on startup. Reconciliation is the correctness layer; fs.watch
 // is an optional latency hint.
 
@@ -29,13 +29,13 @@ export interface ReconcileEvent {
 	to?: string;
 	reason?: string;
 	via?: string;
-	file?: string; // absolute path of the card (set on TRANSITION — Phase 4 dispatch needs it)
+	file?: string; // absolute path of the card (set on TRANSITION - Phase 4 dispatch needs it)
 }
 
 export class Reconciler {
 	readonly snapshot: Snapshot = new Map();
 
-	// T2a layer 1: revert-loop breaker per card — tracks illegal-revert frequency so a
+	// T2a layer 1: revert-loop breaker per card - tracks illegal-revert frequency so a
 	// ghost/second reconciler storm caps at one flagged card instead of 106-in-10s.
 	private readonly revertState = new Map<string, { count: number; firstTs: number; tripped: boolean }>();
 	private readonly MAX_REVERTS = 5;
@@ -47,7 +47,7 @@ export class Reconciler {
 		this.cardsDir = cardsDir;
 	}
 
-	/** Reset revert tracking for a card (e.g. after the edge dissipates — test helper). */
+	/** Reset revert tracking for a card (e.g. after the edge dissipates - test helper). */
 	resetRevertState(id: string): void {
 		this.revertState.delete(id);
 	}
@@ -107,7 +107,7 @@ export class Reconciler {
 	}
 
 	/**
-	 * Startup orphan recovery — run BEFORE arming the loop and seeding nothing else.
+	 * Startup orphan recovery - run BEFORE arming the loop and seeding nothing else.
 	 * Any `Executing` card has no live execution at boot (Sprint 1 = blocking
 	 * single-REPL) -> move to `Needs Review` + `interrupted: true`. Invalid cards
 	 * are quarantined. Everything else seeds the snapshot at its current status.
@@ -139,7 +139,7 @@ export class Reconciler {
 		for (const [id, cur] of current) {
 			const prev = this.snapshot.get(id);
 
-			// 0. Reconcile the `card_type` governance axis — NON-destructively (D3 §4 +
+			// 0. Reconcile the `card_type` governance axis - NON-destructively (D3 §4 +
 			//    D4 §6). Orthogonal to `status`: it only annotates / clears the
 			//    `card_type_invalid` mark (never quarantines, never touches the status
 			//    line), idempotent. `tierOf` already governs such a card, so this is
@@ -158,7 +158,7 @@ export class Reconciler {
 				// D4: carry `file` on NEW_CARD (mirroring TRANSITION/DEQUARANTINE) so the
 				// index.ts emit can fire card:needs-approval for a Tier-1 card first-seen
 				// AT Needs Approval (a created/dragged card that seeds the snapshot there
-				// and emits no later delta — the Pi round-1 gap).
+				// and emits no later delta - the Pi round-1 gap).
 				events.push({ event: "NEW_CARD", card: id, to: cur.status, via, file: cur.file });
 				continue;
 			}
@@ -166,7 +166,7 @@ export class Reconciler {
 			// 3. No change.
 			if (prev === cur.status) continue;
 
-			// 4. Recovery OUT of a sink (Quarantine/Archived) — unguarded. A human
+			// 4. Recovery OUT of a sink (Quarantine/Archived) - unguarded. A human
 			//    explicitly moving the card to a valid status is accepted (manual
 			//    recovery; the engine never auto-moves a card out of a sink).
 			if (isSink(prev)) {
@@ -178,10 +178,10 @@ export class Reconciler {
 					to: cur.status,
 					via,
 					// D1: carry the path on every TRANSITION route to Needs Approval so Tier-2
-					// auto-advance (index.ts) has the file. Backward-compatible — existing
+					// auto-advance (index.ts) has the file. Backward-compatible - existing
 					// consumers ignore the extra field. (DEQUARANTINE deliberately carries it
 					// too; the auto-advance filter keys on event === "TRANSITION", so a
-					// Quarantine → Needs Approval recovery is NOT auto-advanced — see spec §4.)
+					// Quarantine → Needs Approval recovery is NOT auto-advanced - see spec §4.)
 					file: cur.file,
 				});
 				continue;
@@ -192,9 +192,9 @@ export class Reconciler {
 			//    (`tierOf(card_type) === null`). The adjacency table permits the edge from
 			//    Draft/Intake/Brief/Needs Approval; this guard couples it to `card_type` at
 			//    detect time (read here, exactly like Tier-2 auto-advance reads it in
-			//    index.ts — keeps `isLegal` a pure adjacency table). A non-note card dragged
+			//    index.ts - keeps `isLegal` a pure adjacency table). A non-note card dragged
 			//    to `Filed (note)` therefore fails legality and falls through to the SAME
-			//    illegal-transition auto-revert below — no new machinery, no approval-dodge.
+			//    illegal-transition auto-revert below - no new machinery, no approval-dodge.
 			const noteGateOk = cur.status !== FILED_NOTE || cur.rawCardType === "note";
 			// S3 CROSS-AXIS GATE: `→ Filed (intake)` is legal ONLY for an intake-type card.
 			const intakeGateOk = cur.status !== FILED_INTAKE || cur.rawCardType === "intake";
@@ -205,13 +205,13 @@ export class Reconciler {
 				// T2a layer 2: a legal engine/agent edge (e.g. Queued→Executing) detected as a
 				// delta means a ghost reconciler saw the live engine's loop-suppressed write.
 				// Accept the edge by seeding the snapshot and emitting TRANSITION instead of
-				// reverting — kills the ghost-revert class. A human cannot meaningfully drag
+				// reverting - kills the ghost-revert class. A human cannot meaningfully drag
 				// Queued→Executing in Obsidian, so accepting a legal-engine edge is safe.
 				this.snapshot.set(id, cur.status);
 				events.push({ event: "TRANSITION", card: id, from: prev, to: cur.status, via, file: cur.file });
 			} else {
 				// Illegal / skip -> auto-revert to last-legal (snapshot held at prev).
-				// T2a layer 1: revert-loop breaker — suppress if this card has had too many
+				// T2a layer 1: revert-loop breaker - suppress if this card has had too many
 				// reverts in a short window (the ghost-reconciler storm). Caps a 106-in-10s
 				// storm to a single flagged card.
 				if (this.checkRevertBreaker(id)) {
@@ -265,17 +265,17 @@ export class Reconciler {
 	 *
 	 * - **Valid** `card_type` → **D4 §6 clear:** if a stale `card_type_invalid` mark is
 	 *   present on disk, `removeField` it + append an audit line + emit CARD_TYPE_CLEARED.
-	 *   This fires for a valid value written by ANY writer — the desktop `/reclassify`
+	 *   This fires for a valid value written by ANY writer - the desktop `/reclassify`
 	 *   clears the mark inline (so this is then a no-op, belt-and-braces), but the future
 	 *   mobile Meta Bind picker writes `card_type` frontmatter directly and relies on THIS
 	 *   to clear+audit. It is **disk-state driven** (no in-memory previous-value tracking),
 	 *   so it works even if the correction landed while the owner was down. Idempotent:
 	 *   after the clear the mark is gone → the branch never fires again.
-	 * - **Missing** ("") → nothing (a card emptied back to "" keeps any historical mark —
+	 * - **Missing** ("") → nothing (a card emptied back to "" keeps any historical mark -
 	 *   that is not a deliberate reclassify).
 	 * - **Present-but-invalid** → a one-time `annotate(card_type_invalid)`, status
 	 *   preserved (no quarantine). Idempotency gate (Pi round-4 flag #2): compare the
-	 *   stored RAW marker against the exact serialized string we would write — robust to
+	 *   stored RAW marker against the exact serialized string we would write - robust to
 	 *   embedded quotes/backslashes (a cleaned compare would re-write every 2s sweep).
 	 */
 	private reconcileCardType(cur: CardScan, events: ReconcileEvent[], via: string): void {
@@ -284,7 +284,7 @@ export class Reconciler {
 			// D4 §6: clear a stale invalid mark left over from when this field was malformed.
 			if (readRawField(cur.file, "card_type_invalid") !== null) {
 				removeField(cur.file, "card_type_invalid");
-				annotate(cur.file, {}, `card_type_invalid cleared: card_type now valid (${raw}) — reconciled (${via})`);
+				annotate(cur.file, {}, `card_type_invalid cleared: card_type now valid (${raw}) - reconciled (${via})`);
 				events.push({ event: "CARD_TYPE_CLEARED", card: cur.id, to: raw, via });
 			}
 			return;
@@ -295,7 +295,7 @@ export class Reconciler {
 		annotate(
 			cur.file,
 			{ card_type_invalid: marker },
-			`card_type invalid ${marker} (${via}) — status preserved; governed Tier 1`,
+			`card_type invalid ${marker} (${via}) - status preserved; governed Tier 1`,
 		);
 		events.push({ event: "CARD_TYPE_INVALID", card: cur.id, reason: raw, via });
 	}

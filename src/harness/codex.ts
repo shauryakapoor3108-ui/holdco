@@ -1,8 +1,8 @@
-// codex.ts — the Codex adapter STUB + the contributor path to finishing it.
+// codex.ts - the Codex adapter STUB + the contributor path to finishing it.
 //
 // v1 ships two working harnesses (Pi, Claude Code) and this pluggable third:
 // the contract is src/harness/types.ts, the acceptance bar is the conformance
-// suite in src/harness/conformance.ts — an adapter that passes conformance
+// suite in src/harness/conformance.ts - an adapter that passes conformance
 // against its own transport is done. See tests/harness-claude-code.test.ts and
 // tests/harness-pi.test.ts for what a ConformanceWorld looks like.
 //
@@ -24,7 +24,7 @@
 import type { Harness, HarnessArtifacts, HarnessSession, PollResult, SpawnRequest } from "./types.ts";
 
 const HOWTO =
-	"CodexHarness is a conformance stub — implement it against src/harness/types.ts " +
+	"CodexHarness is a conformance stub - implement it against src/harness/types.ts " +
 	"and prove it with runConformance (src/harness/conformance.ts). See src/harness/codex.ts for the sketch.";
 
 /** Registered so a card with `worker: codex` fails LOUDLY at spawn (the engine

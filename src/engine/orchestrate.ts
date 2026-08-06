@@ -1,4 +1,4 @@
-// orchestrate.ts — the daemon's execution glue: workspaces at intake, the queue
+// orchestrate.ts - the daemon's execution glue: workspaces at intake, the queue
 // drain into worker slots, teardown at terminal states.
 //
 // This is what remained of the source system's extension entrypoint after the
@@ -13,11 +13,11 @@
 //
 // Drain discipline (sovereignty rules carried from the source system):
 //   • the engine writes `Queued → Executing` ONLY for a card that is STILL
-//     Queued on disk at dispatch time — a human pull-back always stands.
+//     Queued on disk at dispatch time - a human pull-back always stands.
 //   • the write is loop-suppressed (writeStatus + synchronous snapshot.set).
 //   • halted cards (halt: true) are never drained.
 //   • a Queued card with no lifecycle worktree triggers intake instead of
-//     dispatch — it dispatches on a later tick once workspace:ready landed.
+//     dispatch - it dispatches on a later tick once workspace:ready landed.
 
 import type { EngineHost } from "../host/host.ts";
 import type { Disposer } from "../host/host.ts";
@@ -50,7 +50,7 @@ export interface OrchestratorDeps {
 	/** For message-log entries on classification decisions. */
 	knowledge?: KnowledgeStore;
 	/** Deck telemetry sink. ENGINE-LEVEL events (approval gate, classify) use the
-	 *  CARD id as run_id — the deck groups by card_id, so they join the per-spawn
+	 *  CARD id as run_id - the deck groups by card_id, so they join the per-spawn
 	 *  worker/harvest runs (which carry the pool's runId nonce) on that key. */
 	stageEvents?: StageEventSink;
 }
@@ -89,7 +89,7 @@ export class Orchestrator {
 			host.events.on("card:intake", (p: any) => {
 				if (p?.id && p?.file) void this.d.wsMgr.onIntake(p.id, p.file, this.d.cwd);
 			}),
-			// A card arriving at Needs Approval IS the approval gate opening — the
+			// A card arriving at Needs Approval IS the approval gate opening - the
 			// engine has the landing event; the human move to Queued closes it (the
 			// drain emits "passed" when it consumes the approval).
 			host.events.on("card:needs-approval", (p: any) => {
@@ -122,7 +122,7 @@ export class Orchestrator {
 
 	/**
 	 * One drain pass: offer Queued heads to free slots, oldest queue-entry first
-	 * (approximated by card id order over the reconciler scan — deterministic and
+	 * (approximated by card id order over the reconciler scan - deterministic and
 	 * stable; a dedicated FIFO file is not worth its failure modes at this size).
 	 */
 	async drain(): Promise<void> {
@@ -138,7 +138,7 @@ export class Orchestrator {
 				if (this.d.pool.hasSlot(id)) continue;
 				if (readRawField(scan.file, "halt") === "true") continue;
 
-				// SOVEREIGNTY: re-parse the card NOW — the snapshot may lag a human
+				// SOVEREIGNTY: re-parse the card NOW - the snapshot may lag a human
 				// pull-back by one sweep. A stale offer is a no-op.
 				const cur = parseCard(scan.file);
 				if (!cur || cur.status !== "Queued") continue;
@@ -153,7 +153,7 @@ export class Orchestrator {
 				// TRIAGE (once per card): classify → route → write the decision ONTO
 				// the card (class / tier / model / classified_by). Status is unchanged,
 				// so the write produces no reconcile delta. A human-pinned `model:`
-				// field always wins — routing never overrides it.
+				// field always wins - routing never overrides it.
 				if (this.d.classifier && this.d.routing && !readRawField(scan.file, "class")) {
 					this.stage({
 						run_id: id,
@@ -174,7 +174,7 @@ export class Orchestrator {
 					const { tier, model } = routeFor(this.d.routing, c.class);
 					const pinned = readRawField(scan.file, "model");
 					// model = the classifier's own model (its `via`) when a model classified;
-					// the rules fallback has no model. The rationale stays in the log — the
+					// the rules fallback has no model. The rationale stays in the log - the
 					// StageEvent schema has no field for it.
 					this.stage({
 						run_id: id,
@@ -215,7 +215,7 @@ export class Orchestrator {
 				// The engine edge: Queued → Executing, loop-suppressed, then dispatch.
 				writeStatus(scan.file, "Executing", { logLine: "drain: Queued → Executing (engine)" });
 				rec.snapshot.set(id, "Executing");
-				// The human approval was consumed (Queued → Executing) — gate passed.
+				// The human approval was consumed (Queued → Executing) - gate passed.
 				this.stageApprovalGate(id, "passed");
 				this.d.host.events.emit("card:dequeued", { id, file: scan.file });
 				this.d.pool.dispatch(id, scan.file, { cwd: this.d.cwd });

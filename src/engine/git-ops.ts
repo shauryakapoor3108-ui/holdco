@@ -1,7 +1,7 @@
-// git-ops.ts — pure git-CLI wrappers for per-card worktree isolation (Slice 3/4).
+// git-ops.ts - pure git-CLI wrappers for per-card worktree isolation (Slice 3/4).
 //
 // Every function calls child_process.execSync with a timeout and throws on
-// non-zero exit. No card-engine imports — standalone, testable, mockable.
+// non-zero exit. No card-engine imports - standalone, testable, mockable.
 // Wired into the engine by workspace-manager.ts and index.ts in Slices 3/4.
 
 import { execSync, type ExecSyncOptions } from "node:child_process";
@@ -34,7 +34,7 @@ function execGit(args: string, cwd?: string): string {
  *
  * These match REPO-RELATIVE diff paths (`+++ b/.pi/extensions/<name>/…`), which are
  * project-independent as long as the owner-loaded extensions live at `.pi/extensions/`
- * — so this default works for any ProjectConfig whose engineRoot is `<cwd>/.pi/extensions`.
+ * - so this default works for any ProjectConfig whose engineRoot is `<cwd>/.pi/extensions`.
  * A project with an exotic engineRoot can pass its own pattern array to
  * `gitCheckEngineTouched`. Exported so callers/config can reference the default.
  */
@@ -52,7 +52,7 @@ export const ENGINE_DIR_PATTERNS: readonly string[] = [
  *
  * Runs: `git -C <repoPath> worktree add --force <path> <ref>`
  * `--force` is used so the worktree can be (re)created even if the ref is
- * already checked out in another worktree — matches the per-card isolation
+ * already checked out in another worktree - matches the per-card isolation
  * model where multiple worktrees share the same base ref.
  *
  * @param repoPath  Absolute path to the main repository.
@@ -85,8 +85,8 @@ export function gitWorktreeRemove(repoPath: string, path: string): void {
  * Stage all changes in a worktree and produce a staged diff against HEAD.
  *
  * Runs:
- *   1. `git -C <worktreePath> add -A`         — stages everything
- *   2. `git -C <worktreePath> diff --staged HEAD` — produces the diff
+ *   1. `git -C <worktreePath> add -A`         - stages everything
+ *   2. `git -C <worktreePath> diff --staged HEAD` - produces the diff
  *
  * Returns the full diff text (empty string if the worktree is clean).
  *
@@ -123,9 +123,9 @@ export function gitApply(mainRepoPath: string, diffPath: string): void {
  * Reset a worktree to a clean state matching HEAD.
  *
  * Runs:
- *   1. `git -C <worktreePath> reset HEAD -- .`  — unstage any staged changes
- *   2. `git -C <worktreePath> checkout -- .`     — discard working-tree changes
- *   3. `git -C <worktreePath> clean -fd`         — remove untracked files/dirs
+ *   1. `git -C <worktreePath> reset HEAD -- .`  - unstage any staged changes
+ *   2. `git -C <worktreePath> checkout -- .`     - discard working-tree changes
+ *   3. `git -C <worktreePath> clean -fd`         - remove untracked files/dirs
  *
  * After reset, the worktree is identical to HEAD (clean index + clean tree).
  *
@@ -133,7 +133,7 @@ export function gitApply(mainRepoPath: string, diffPath: string): void {
  */
 export function gitWorktreeReset(worktreePath: string, base = "HEAD"): void {
 	// Hard-reset to the creation base, then drop untracked. Resetting to <base> (not the
-	// live HEAD) matters because a worker may have committed inside the worktree — HEAD
+	// live HEAD) matters because a worker may have committed inside the worktree - HEAD
 	// would be the worker's commit, so a HEAD-reset would NOT actually clean it. base
 	// defaults to "HEAD" (no-commit / test path → identical to the old reset behavior).
 	execGit(`-C ${worktreePath} reset --hard ${base}`);
@@ -169,7 +169,7 @@ export function gitWorktreePrune(mainRepoPath: string): void {
  * the ENGINE_DIR_PATTERNS list. This covers both `+++ b/...` and `--- a/...`
  * git-diff path lines as well as any rename/copy headers. False positives are
  * possible in theory (a diff body comment mentioning the same string) but
- * negligible in practice — the human verifies the flag at review time.
+ * negligible in practice - the human verifies the flag at review time.
  *
  * @param diffPath  Absolute path to a `git diff --staged HEAD` output file.
  * @param patterns  Substrings that mark an engine dir. Defaults to ENGINE_DIR_PATTERNS

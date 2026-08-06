@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# live-m5-routing.sh — M5 live proof (run manually: `bash scripts/live-m5-routing.sh`).
+# live-m5-routing.sh - M5 live proof (run manually: `bash scripts/live-m5-routing.sh`).
 #
 # The cost story, live: a chore-shaped card is triaged by the REAL cheap-model
 # classifier, auto-routed to the WORKHORSE tier by knowledge/routing.json, and
@@ -79,10 +79,10 @@ if echo "$CARD_TEXT" | grep -q "^class: chore" \
 	&& echo "$CARD_TEXT" | grep -q "^status: Needs Review" \
 	&& grep -q "\"modelUsage\":{\"$WORKHORSE" "$SCOPED/m5/session.jsonl" \
 	&& grep -qa "EXEC_CLASSIFIED" "$BOARD/daemon.log"; then
-	echo "✅ M5 LIVE PROOF PASSED — chore card auto-routed to the workhorse tier; the worker run billed to $WORKHORSE; decision logged on card + daemon log."
+	echo "✅ M5 LIVE PROOF PASSED - chore card auto-routed to the workhorse tier; the worker run billed to $WORKHORSE; decision logged on card + daemon log."
 	echo "   board kept at $BOARD (inspect, then delete)"
 else
-	echo "❌ M5 LIVE PROOF FAILED — inspect $BOARD/daemon.log and $SCOPED/m5/"
+	echo "❌ M5 LIVE PROOF FAILED - inspect $BOARD/daemon.log and $SCOPED/m5/"
 	tail -20 "$BOARD/daemon.log"
 	exit 1
 fi

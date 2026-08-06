@@ -1,7 +1,7 @@
-// replay.ts — demo-mode feed: replay a committed StageEvent fixture into the
+// replay.ts - demo-mode feed: replay a committed StageEvent fixture into the
 // observability server at (optionally slowed) real pace, over the same POST
 // path live telemetry uses. `holdco obs` + `holdco replay` IS deck demo mode:
-// the deck cannot tell a replay from a live run — which is the point (the
+// the deck cannot tell a replay from a live run - which is the point (the
 // README GIF and the application video capture exactly this, with ZERO real
 // data: fixtures are synthetic by hard rule).
 
@@ -24,7 +24,7 @@ export interface ReplayOpts {
 	schemaPath?: string;
 }
 
-/** Never let a fixture gap stall a demo — cap each inter-event wait. */
+/** Never let a fixture gap stall a demo - cap each inter-event wait. */
 const MAX_GAP_MS = 5_000;
 
 export async function replayFixture(opts: ReplayOpts): Promise<{ sent: number; rejected: number }> {
@@ -48,7 +48,7 @@ export async function replayFixture(opts: ReplayOpts): Promise<{ sent: number; r
 			throw new Error(`${opts.file}:${i + 1}: not JSON (${String(err)})`);
 		}
 		const verdict = validateFile(schemaPath, parsed);
-		if (!verdict.valid) throw new Error(`${opts.file}:${i + 1}: schema-invalid StageEvent — ${verdict.errors.join("; ")}`);
+		if (!verdict.valid) throw new Error(`${opts.file}:${i + 1}: schema-invalid StageEvent - ${verdict.errors.join("; ")}`);
 		return parsed as StageEvent;
 	});
 	if (events.length === 0) return { sent: 0, rejected: 0 };

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# live-m6-telemetry.sh — M6 live proof (run manually: `bash scripts/live-m6-telemetry.sh`).
+# live-m6-telemetry.sh - M6 live proof (run manually: `bash scripts/live-m6-telemetry.sh`).
 #
 # StageEvent telemetry end-to-end: `holdco obs` (schema-validated ingest →
 # SQLite → SSE) + `holdco serve --obs-url` (events emitted at the harness
 # boundary) + a REAL Claude Code worker. Verifies the deck's full data path:
 #   approval-gate awaiting_human → classify started/passed → approval-gate
-#   passed → worker started → worker passed (usage) → harvest → review-gate —
+#   passed → worker started → worker passed (usage) → harvest → review-gate -
 # stored queryably AND received live over the SSE stream.
 #
 # Requires: the `claude` CLI installed + authenticated. Costs a few cents.
@@ -97,10 +97,10 @@ sse_count=$(grep -c "^event: stage" "$BOARD/sse.log" || echo 0)
 
 echo
 if [ "$seq_ok" = "OK" ] && [ "$sse_count" -ge 8 ]; then
-	echo "✅ M6 LIVE PROOF PASSED — full StageEvent sequence stored (with real usage/cost) and delivered live over SSE ($sse_count frames)."
+	echo "✅ M6 LIVE PROOF PASSED - full StageEvent sequence stored (with real usage/cost) and delivered live over SSE ($sse_count frames)."
 	echo "   board kept at $BOARD (inspect, then delete)"
 else
-	echo "❌ M6 LIVE PROOF FAILED — sequence check: $seq_ok, sse frames: $sse_count"
+	echo "❌ M6 LIVE PROOF FAILED - sequence check: $seq_ok, sse frames: $sse_count"
 	echo "--- events:"; echo "$EVENTS_JSON" | head -c 1500; echo
 	echo "--- daemon log tail:"; tail -15 "$BOARD/daemon.log"
 	exit 1

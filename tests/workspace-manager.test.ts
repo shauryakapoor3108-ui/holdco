@@ -1,4 +1,4 @@
-// workspace-manager.test.ts — exercises the lifecycle workspace manager under a
+// workspace-manager.test.ts - exercises the lifecycle workspace manager under a
 // FAKE herdr transport (no real herdr, no real panes) and a fake capture host.
 // Run via `node tests/workspace-manager.test.ts`.
 //
@@ -8,7 +8,7 @@
 //
 // Every test that creates workspaces uses a REAL git repo (required by the
 // gitWorktreeAdd call inside createWorkspace). A shared helper `setup()` builds
-// a bare+clone pair AND a per-test scopedBase, all under one mkdtemp dir — the
+// a bare+clone pair AND a per-test scopedBase, all under one mkdtemp dir - the
 // suite is fully hermetic (no shared /tmp paths, cleanup removes the whole dir).
 
 import { execSync, type ExecSyncOptions } from "node:child_process";
@@ -209,7 +209,7 @@ async function run() {
 	const ready = emittedFor(cap, "workspace:ready");
 	ok(ready.every((r) => r.id !== "A3"), "no workspace:ready for A3 (queued)");
 	// Free one workspace by terminating A1 → A3 should drain. The drain uses the
-	// cwd captured at intake time (t.repo), NOT process.cwd() — port deviation.
+	// cwd captured at intake time (t.repo), NOT process.cwd() - port deviation.
 	await wsm.onTerminal("A1", t.repo);
 	// drainOne fires createWorkspace fire-and-forget; give it a tick to finish.
 	await new Promise((r) => setTimeout(r, 200));
@@ -339,7 +339,7 @@ async function run() {
 	ok(failed.length === 1 && failed[0].id === "FAIL", "workspace:failed emitted");
 	ok(failed[0].reason.includes("herdr"), "reason explains herdr failure");
 	// The stranded worktree (herdr failed but git worktree was already created)
-	// lives under the hermetic mkdtemp root — cleanup removes it wholesale.
+	// lives under the hermetic mkdtemp root - cleanup removes it wholesale.
 	t.cleanup();
 }
 
@@ -356,7 +356,7 @@ async function run() {
 	t.cleanup();
 }
 
-	console.log("\n── worktree-only mode: no herdr dep — the git worktree IS the isolation ──");
+	console.log("\n── worktree-only mode: no herdr dep - the git worktree IS the isolation ──");
 
 {
 	const t = setup();

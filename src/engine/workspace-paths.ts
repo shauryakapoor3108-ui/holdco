@@ -1,7 +1,7 @@
-// workspace-paths.ts — the ONE place the per-card scoped-dir / worktree layout lives.
+// workspace-paths.ts - the ONE place the per-card scoped-dir / worktree layout lives.
 //
 // Every scoped-dir template collapses to these two functions, parameterised by
-// `scopedBase`. The default base is a holdco dir under the OS tmpdir — per-card
+// `scopedBase`. The default base is a holdco dir under the OS tmpdir - per-card
 // working state is ephemeral by design (the durable record is the card + the
 // harvested diff, never the scratch workspace).
 

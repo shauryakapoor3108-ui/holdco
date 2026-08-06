@@ -1,9 +1,9 @@
-// cockpit.ts — the ONE herdr workspace per project ("cockpit") where everything runs
+// cockpit.ts - the ONE herdr workspace per project ("cockpit") where everything runs
 // visibly: the owner pi in the root pane, workers + model (rpc) calls as SPLIT PANES of
 // the same tab. The owner sits in the left column; workers stack down the right column.
 // Once the cockpit tab holds COCKPIT_TAB_CAP panes (owner + 3 workers) the next worker
 // overflows into a "bench" tab of the SAME workspace.
-// (EngineHost port: Pi-free already — near-verbatim; constructor parameter property
+// (EngineHost port: Pi-free already - near-verbatim; constructor parameter property
 // expanded to an explicit field per the strip-only TypeScript rule.)
 //
 // The single ensure-cockpit helper is SHARED (not duplicated) by the worker-pool (workers)
@@ -11,12 +11,12 @@
 // the cockpit in bash and the pool RE-creates it here if it is gone at dispatch.
 //
 // LIVE HERDR FACTS (herdr 0.5.10, probed this session):
-//   • pane_ids are POSITIONAL — closing ANY pane RENUMBERS every higher-id pane in the
+//   • pane_ids are POSITIONAL - closing ANY pane RENUMBERS every higher-id pane in the
 //     workspace (`pane get <old-id>` → pane_not_found). A cached pane_id therefore goes
 //     stale the moment a sibling closes. Everything here addresses panes by their STABLE
 //     LABEL (owner:/worker:/rpc:) and re-resolves the concrete pane_id at each use via
 //     `pane list --workspace`.
-//   • herdr AUTO-CLOSES a tab when its last pane closes — so the bench tab needs no
+//   • herdr AUTO-CLOSES a tab when its last pane closes - so the bench tab needs no
 //     explicit `tab close`; closing the last worker pane reaps it.
 
 import type { AgentState, HerdrAdapter } from "./herdr-adapter.ts";
@@ -54,7 +54,7 @@ export interface CockpitDeps {
 	herdr: HerdrAdapter;
 	/** exact cockpit workspace label to find-or-create (cockpit-<slug>). */
 	label: string;
-	/** project root — the --cwd for a re-created cockpit workspace. */
+	/** project root - the --cwd for a re-created cockpit workspace. */
 	cwd: string;
 	/** structured log sink (best-effort). */
 	log?: (event: string, data: Record<string, unknown>) => void;
@@ -62,7 +62,7 @@ export interface CockpitDeps {
 
 /**
  * A handle to the project's single cockpit workspace. Instances CACHE the resolved
- * workspace id but NEVER cache worker/rpc pane ids (they renumber — see file header).
+ * workspace id but NEVER cache worker/rpc pane ids (they renumber - see file header).
  */
 export class Cockpit {
 	private workspaceId: string | null = null;
@@ -82,7 +82,7 @@ export class Cockpit {
 	}
 
 	/**
-	 * Adopt an EXISTING cockpit (no create) — used by rpc.ts, which routes through the
+	 * Adopt an EXISTING cockpit (no create) - used by rpc.ts, which routes through the
 	 * cockpit only when one is already present. Returns null when no cockpit exists.
 	 */
 	static async adopt(herdr: HerdrAdapter, cwd: string, log?: CockpitDeps["log"]): Promise<Cockpit | null> {
@@ -105,8 +105,8 @@ export class Cockpit {
 	}
 
 	/** Find-or-create the cockpit workspace. The owner-launcher normally creates it; if it is
-	 *  gone at dispatch we rebuild a headless one (the owner keeps running in its original —
-	 *  now orphaned — pane) so workers still run visibly. Returns the id (null on herdr failure). */
+	 *  gone at dispatch we rebuild a headless one (the owner keeps running in its original -
+	 *  now orphaned - pane) so workers still run visibly. Returns the id (null on herdr failure). */
 	async ensure(): Promise<string | null> {
 		if (this.workspaceId) return this.workspaceId;
 		if (this.ensuring) return this.ensuring; // a concurrent caller is already creating it
@@ -190,7 +190,7 @@ export class Cockpit {
 	}
 
 	/** Resolve a label to its current pane id AND report whether the scoped pane list was
-	 *  non-empty — so a caller can tell a GENUINE omission (pane gone) from a transient/empty
+	 *  non-empty - so a caller can tell a GENUINE omission (pane gone) from a transient/empty
 	 *  herdr read (the adapter returns [] on a timeout too, which must NOT read as "dead"). */
 	async locate(paneLabel: string): Promise<{ paneId: string | null; listNonEmpty: boolean }> {
 		const ws = this.workspaceId ?? (await this.find());
@@ -212,7 +212,7 @@ export class Cockpit {
 	}
 
 	/** Teardown: close the pane for a label (NOT the workspace). herdr auto-closes the bench
-	 *  tab when its last pane goes. Idempotent — a missing label is a no-op. */
+	 *  tab when its last pane goes. Idempotent - a missing label is a no-op. */
 	async close(paneLabel: string): Promise<void> {
 		const id = await this.resolve(paneLabel);
 		if (id) await this.d.herdr.paneClose(id);

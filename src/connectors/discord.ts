@@ -1,15 +1,15 @@
-// discord.ts — Discord intake connector: polls channel history via the REST
+// discord.ts - Discord intake connector: polls channel history via the REST
 // API with native fetch (zero deps, no gateway/websocket) and normalizes new
 // human messages into SourceEvents.
 //
 // Cursor semantics: the FIRST successful poll of a channel only SEEDS the
 // cursor (max message id seen) and delivers nothing. Only messages that
-// arrive AFTER start() are intake — without this, every boot would re-draft
+// arrive AFTER start() are intake - without this, every boot would re-draft
 // the entire channel history as cards. (Redelivery of an already-drafted
 // message is still harmless: the drafter dedupes on source_ref.)
 //
 // Failure policy (contract rule 4): 429s, 5xx and network errors are logged
-// and retried on the next poll — nothing throws out of the watch loop. A 429
+// and retried on the next poll - nothing throws out of the watch loop. A 429
 // honours Retry-After by skipping polls until the window elapses.
 
 import type { Connector, SourceEvent, StopFn } from "./types.ts";
@@ -19,9 +19,9 @@ export interface DiscordConnectorOpts {
 	channelIds: string[];
 	/** Poll cadence, default 15s. */
 	pollMs?: number;
-	/** REST base, default the real API — injectable for tests. */
+	/** REST base, default the real API - injectable for tests. */
 	apiBase?: string;
-	/** fetch implementation, default globalThis.fetch — injectable for tests. */
+	/** fetch implementation, default globalThis.fetch - injectable for tests. */
 	fetchFn?: typeof fetch;
 	log?: (event: string, data: Record<string, unknown>) => void;
 }
@@ -40,7 +40,7 @@ function firstLineTitle(content: string): string {
 	return line.length <= 80 ? line : `${line.slice(0, 79)}…`;
 }
 
-/** Snowflake ids are 64-bit — compare as BigInt, never as strings. */
+/** Snowflake ids are 64-bit - compare as BigInt, never as strings. */
 function snowflakeGt(a: string, b: string): boolean {
 	return BigInt(a) > BigInt(b);
 }
@@ -98,7 +98,7 @@ export class DiscordConnector implements Connector {
 			try {
 				await this.pollChannel(channelId, onEvent);
 			} catch (err) {
-				// Network/parse failure — log and retry next poll.
+				// Network/parse failure - log and retry next poll.
 				this.log?.("DISCORD_POLL_ERROR", { channel: channelId, error: String(err) });
 			}
 		}
@@ -139,7 +139,7 @@ export class DiscordConnector implements Connector {
 		const maxId = ascending[ascending.length - 1].id;
 
 		if (cursor === undefined) {
-			// First successful poll: seed only — channel history is not intake.
+			// First successful poll: seed only - channel history is not intake.
 			this.cursors.set(channelId, maxId);
 			this.log?.("DISCORD_CURSOR_SEEDED", { channel: channelId, cursor: maxId });
 			return;
@@ -155,7 +155,7 @@ export class DiscordConnector implements Connector {
 			if (!content) continue; // attachment-only / embed-only messages carry no draftable text
 			onEvent({
 				sourceType: "discord-message",
-				// No guild id on this endpoint's message objects — use a stable
+				// No guild id on this endpoint's message objects - use a stable
 				// synthetic scheme instead of a https://discord.com/channels URL.
 				sourceRef: `discord://${channelId}/${msg.id}`,
 				surfacedBy: msg.author?.username || "unknown",

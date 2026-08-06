@@ -1,4 +1,4 @@
-// core.test.ts — engine-loop smoke tests against a fake host and a temp
+// core.test.ts - engine-loop smoke tests against a fake host and a temp
 // cards dir. Proves the standalone engine (no Pi, no daemon) enforces the
 // matrix, emits landing events, recovers orphans, and honours halt.
 // Run via `node tests/core.test.ts`.

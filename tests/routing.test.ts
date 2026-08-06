@@ -1,4 +1,4 @@
-// routing.test.ts — classifier + cost-aware model routing: the rules classifier's
+// routing.test.ts - classifier + cost-aware model routing: the rules classifier's
 // decisions, the tolerant routing-table loader, and the orchestrator's triage
 // stage (decision written onto the card, human-pinned models never overridden,
 // no reconcile delta). The headless model classifier's FALLBACK path is covered

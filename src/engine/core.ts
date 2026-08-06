@@ -1,8 +1,8 @@
-// core.ts — the engine loop, host-agnostic.
+// core.ts - the engine loop, host-agnostic.
 //
 // Extracted from the source system's extension entrypoint (index.ts, 1127
-// lines): this is the reconciliation core — lease, startup recovery, sweep
-// interval, optional fs.watch latency hint, lifecycle event emission — with
+// lines): this is the reconciliation core - lease, startup recovery, sweep
+// interval, optional fs.watch latency hint, lifecycle event emission - with
 // every runtime touchpoint routed through EngineHost. Worker dispatch
 // (executor / worker pool / workspaces) arrives with the harness-adapter
 // phase; the engine already emits the events those components subscribe to.
@@ -30,7 +30,7 @@ function isHalted(file: string): boolean {
 }
 
 // Landing events: a card ARRIVING at a column via any live route triggers the
-// column's lifecycle event exactly once per arrival. NEW_CARD is included —
+// column's lifecycle event exactly once per arrival. NEW_CARD is included -
 // a card first seen at a column seeds the snapshot and emits no later delta,
 // so watching TRANSITION alone would miss it (source-system lesson).
 const LANDING_ROUTES = new Set(["TRANSITION", "DEQUARANTINE", "NEW_CARD"]);
@@ -48,7 +48,7 @@ export class CardEngine {
 	readonly cardsDir: string;
 	private readonly host: EngineHost;
 	/** The live reconciler (null before start()). The orchestrator's drain reads
-	 *  scan/snapshot through this — ONE snapshot per board, never a second instance. */
+	 *  scan/snapshot through this - ONE snapshot per board, never a second instance. */
 	reconciler: Reconciler | null = null;
 	private interval: ReturnType<typeof setInterval> | null = null;
 	private watcher: fs.FSWatcher | null = null;
@@ -79,7 +79,7 @@ export class CardEngine {
 			this.leasePath = leasePathFor(this.cardsDir);
 			const lease: LeaseOutcome = acquireLease(this.leasePath);
 			if (!lease.owner) {
-				this.host.notify(`engine lease held by pid ${lease.holderPid} — running inert`, "warning");
+				this.host.notify(`engine lease held by pid ${lease.holderPid} - running inert`, "warning");
 				this.leasePath = null; // not ours to release
 				return { owner: false };
 			}

@@ -3,7 +3,7 @@
 ## Requirements
 
 - **Node ≥ 24.** The code runs TypeScript directly via Node's built-in type
-  stripping and uses `node:sqlite` — no build step, no transpiler, no runtime
+  stripping and uses `node:sqlite` - no build step, no transpiler, no runtime
   dependencies.
 - Nothing to install for the core loop; `npm install` fetches dev-only
   `typescript` + `@types/node` for the typecheck.
@@ -13,9 +13,9 @@
 Because files execute as-is under Node's type stripping, only *erasable*
 TypeScript syntax is allowed:
 
-- **No** constructor parameter properties (`constructor(private x: T)`) —
+- **No** constructor parameter properties (`constructor(private x: T)`) -
   declare the field and assign it.
-- **No** `enum` — use `as const` arrays/objects + union types.
+- **No** `enum` - use `as const` arrays/objects + union types.
 - **No** `namespace`.
 - Use `import type` for type-only imports.
 - Import local modules **with the `.ts` extension**
@@ -37,7 +37,7 @@ needs a new test file wired into the `test` script in `package.json`.
 
 ## Adding adapters
 
-Don't start from scratch — both seams ship executable acceptance bars:
+Don't start from scratch - both seams ship executable acceptance bars:
 
 - **Harness** (Pi/Claude Code/Codex-style executor): implement
   `src/harness/types.ts`, pass `runConformance`
@@ -46,7 +46,7 @@ Don't start from scratch — both seams ship executable acceptance bars:
   `src/connectors/types.ts`, pass `runConnectorConformance`
   (`src/connectors/conformance.ts`).
 
-A hermetic fake transport is fine — that's how the shipped adapters are
+A hermetic fake transport is fine - that's how the shipped adapters are
 tested (`tests/fixtures/fake-claude.mjs`).
 
 ## Ground rules
@@ -55,4 +55,4 @@ tested (`tests/fixtures/fake-claude.mjs`).
 - Fail-safe posture: malformed config narrows authority, never widens it.
 - `poll()`-shaped code returns verdicts, never throws into the sweep.
 - Data-contract changes (card frontmatter, StageEvent, knowledge files) go
-  through `schema/` — update the JSON Schema + fixtures in the same PR.
+  through `schema/` - update the JSON Schema + fixtures in the same PR.

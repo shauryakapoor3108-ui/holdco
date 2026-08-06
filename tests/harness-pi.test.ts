@@ -1,4 +1,4 @@
-// harness-pi.test.ts — the Pi harness adapter under the shipped conformance suite
+// harness-pi.test.ts - the Pi harness adapter under the shipped conformance suite
 // (runConformance + a ConformanceWorld over a COCKPIT-aware fake herdr + fake obs),
 // plus unit tests for the pi-guard extension's pure mapping (evaluatePiToolCall)
 // and its default-export handler (inert / fail-closed / loaded paths).
@@ -40,10 +40,10 @@ interface FPane {
 	label?: string;
 	tabId: string;
 	wsId: string;
-	/** the report-agent CHIP state (cockpit paint) — NOT the pi repl status */
+	/** the report-agent CHIP state (cockpit paint) - NOT the pi repl status */
 	chip: string;
 	/** the pi-injected repl agent_status `pane get` reads: "idle" until a steer is
-	 *  SUBMITTED (send-keys Enter), then "working" — makes submit-verify honest. */
+	 *  SUBMITTED (send-keys Enter), then "working" - makes submit-verify honest. */
 	agent: string;
 }
 
@@ -230,7 +230,7 @@ function fakePi() {
 	piGuard(g.pi);
 	await g.handlers.get("session_start")!({}, g.ctx);
 	ok(!g.handlers.has("tool_call"), "no HOLDCO_POLICY → tool_call NOT hooked (guard inert)");
-	ok(g.notices.some((n) => n.includes("no policy — guard inert")), "inert path notifies `no policy — guard inert`");
+	ok(g.notices.some((n) => n.includes("no policy - guard inert")), "inert path notifies `no policy - guard inert`");
 
 	console.log("── 2b. pi-guard handler: unreadable policy → FAIL CLOSED");
 	process.env.HOLDCO_POLICY = join(TMP, "does-not-exist", "policy.json");
@@ -316,7 +316,7 @@ const world: ConformanceWorld = {
 		herdr.emptyList = true; // paneList → [] → the adapter must answer "unknown"
 	},
 	async attemptViolations(session) {
-		// Assert the policy ARTIFACT the adapter generated actually blocks — the same
+		// Assert the policy ARTIFACT the adapter generated actually blocks - the same
 		// evaluator the worker-side guard runs, fed the same policy.json bytes.
 		const s = session as PiHarnessSession;
 		const policy: SafetyPolicy = JSON.parse(fs.readFileSync(join(s.scopedDir, "policy.json"), "utf8"));
@@ -328,7 +328,7 @@ const world: ConformanceWorld = {
 
 console.log("── 3. conformance suite (PiHarness over fake herdr/obs + real Cockpit)");
 const checks = await runConformance(world);
-for (const c of checks) ok(c.ok, `[conformance] ${c.id}${c.detail ? ` — ${c.detail.split("\n")[0].slice(0, 100)}` : ""}`);
+for (const c of checks) ok(c.ok, `[conformance] ${c.id}${c.detail ? ` - ${c.detail.split("\n")[0].slice(0, 100)}` : ""}`);
 herdr.emptyList = false; // restore the transport after the edge scenario
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -362,7 +362,7 @@ herdr.emptyList = false; // restore the transport after the edge scenario
 	const ws = await world.makeWorkspace();
 	const req: SpawnRequest = {
 		workspace: ws,
-		instruction: "poll adjudication scenario — no real work.",
+		instruction: "poll adjudication scenario - no real work.",
 		card: { id: ws.cardId, domain: "conformance", cardType: "ops" },
 		runId: `${ws.cardId}-adjudication`,
 		policy: { writeScopes: [ws.dir, ws.scopedDir], denyCommands: [...DEFAULT_DENY_COMMANDS] },

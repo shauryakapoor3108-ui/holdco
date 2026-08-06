@@ -1,8 +1,8 @@
-// drafter.ts — normalize(source_event) → a drafted card with provenance.
+// drafter.ts - normalize(source_event) → a drafted card with provenance.
 //
 // Engine-side and connector-agnostic: every intake surface produces the SAME
-// card shape. The card lands at Draft — the top of the funnel, outside every
-// engine-driven edge — so nothing executes until a human (or a later triage
+// card shape. The card lands at Draft - the top of the funnel, outside every
+// engine-driven edge - so nothing executes until a human (or a later triage
 // rule) deliberately promotes it. Dedupe is deterministic: the card id is
 // derived from the source_ref hash, so an at-least-once transport can
 // redeliver forever and still draft exactly one card.
@@ -23,7 +23,7 @@ export interface CardDrafterDeps {
 export interface DraftResult {
 	id: string;
 	file: string;
-	/** false when the card already existed (redelivery — nothing written). */
+	/** false when the card already existed (redelivery - nothing written). */
 	created: boolean;
 }
 
@@ -69,7 +69,7 @@ export class CardDrafter {
 			`---\n\n` +
 			`## Intent\n${ev.body.trim()}\n\n` +
 			`## Reconciler Log\n` +
-			`- ${new Date().toISOString()} — drafted from ${ev.sourceType} by ${this.d.drafter} (surfaced by ${ev.surfacedBy.replace(/\s+/g, " ").trim()})\n`;
+			`- ${new Date().toISOString()} - drafted from ${ev.sourceType} by ${this.d.drafter} (surfaced by ${ev.surfacedBy.replace(/\s+/g, " ").trim()})\n`;
 		fs.writeFileSync(file, card, "utf8");
 		this.d.log?.("INTAKE_DRAFTED", { card: id, source_type: ev.sourceType, source_ref: ev.sourceRef, surfaced_by: ev.surfacedBy });
 		return { id, file, created: true };

@@ -1,4 +1,4 @@
-// workspace-manager.ts — lifecycle workspace + per-card git worktree (EngineHost port).
+// workspace-manager.ts - lifecycle workspace + per-card git worktree (EngineHost port).
 //
 // Creates a persistent herdr workspace + git worktree on card:intake, maintains an
 // in-memory lifecycleWorkspaces map, enforces a maxLifecycleWorkspaces cap, and gates
@@ -10,13 +10,13 @@
 // workspace --cwd IS the worktree (not the shared main repo). The worktree is
 // removed + pruned on terminal or haltKill.
 //
-// EngineHost port: the Pi `setPi(pi)` seam is gone — the host arrives in deps and is
+// EngineHost port: the Pi `setPi(pi)` seam is gone - the host arrives in deps and is
 // always present (events via host.events.emit, logging via host.log.entry). The herdr
 // workspace creation stays here for now; it becomes the Pi-adapter surface in a later
 // milestone.
 //
 // The workspace-manager is REGISTERED BEFORE the auto-planner so its card:intake
-// handler fires first — the auto-planner gates on workspace:ready.
+// handler fires first - the auto-planner gates on workspace:ready.
 
 import * as fs from "node:fs";
 import { join } from "node:path";
@@ -58,7 +58,7 @@ export class WorkspaceManager {
 	private readonly d: WorkspaceManagerDeps;
 	private readonly max: number;
 	private readonly now: () => number;
-	// Deferred intakes carry the cwd from onIntake — drainOne must create the
+	// Deferred intakes carry the cwd from onIntake - drainOne must create the
 	// deferred workspace against the SAME repo the intake targeted, not process.cwd()
 	// (deliberate deviation from the source, which used process.cwd() in drainOne).
 	private readonly queue: Array<{ id: string; file: string; cwd: string }> = [];
@@ -73,11 +73,11 @@ export class WorkspaceManager {
 		this.labelPrefix = d.labelPrefix ?? CARD_WORKSPACE_LABEL_PREFIX;
 	}
 
-	/** `<scopedBase>/<id>` — the ONE place the scoped-dir template resolves (via the shared helper). */
+	/** `<scopedBase>/<id>` - the ONE place the scoped-dir template resolves (via the shared helper). */
 	private scopedDir(id: string): string {
 		return scopedDirFor({ scopedBase: this.scopedBase }, id);
 	}
-	/** `<scopedBase>/<id>/worktree` — the git-worktree path (via the shared helper). */
+	/** `<scopedBase>/<id>/worktree` - the git-worktree path (via the shared helper). */
 	private worktreeDir(id: string): string {
 		return worktreeDirFor({ scopedBase: this.scopedBase }, id);
 	}
@@ -109,7 +109,7 @@ export class WorkspaceManager {
 	 */
 	async onIntake(id: string, file: string, cwd: string): Promise<void> {
 		// Reject path: if a lifecycle workspace already exists for this card (e.g.,
-		// Needs Approval → Intake re-plan), reuse it — just emit workspace:ready.
+		// Needs Approval → Intake re-plan), reuse it - just emit workspace:ready.
 		const existing = this.lifecycleWorkspaces.get(id);
 		if (existing) {
 			this.d.host.events.emit("workspace:ready", {
@@ -143,7 +143,7 @@ export class WorkspaceManager {
 		const ws = this.lifecycleWorkspaces.get(id);
 		if (!ws) return;
 
-		// Close the herdr workspace (when one exists — worktree-only mode has none).
+		// Close the herdr workspace (when one exists - worktree-only mode has none).
 		if (this.d.herdr && ws.workspaceId) {
 			try {
 				await this.d.herdr.workspaceClose(ws.workspaceId);
@@ -158,7 +158,7 @@ export class WorkspaceManager {
 			try {
 				gitWorktreeRemove(repoPath, ws.worktreePath);
 			} catch {
-				/* best-effort — directory may already be gone */
+				/* best-effort - directory may already be gone */
 			}
 			try {
 				gitWorktreePrune(repoPath);
@@ -202,7 +202,7 @@ export class WorkspaceManager {
 				const status = snapshot.get(cardId);
 				// Keep only if the card is in the active funnel (Draft→Needs Review, not Filed/Archived/Quarantine).
 				if (status && status !== "Filed" && status !== "Archived" && status !== "Quarantine") {
-					// Card is alive — re-register in the in-memory map so we track it.
+					// Card is alive - re-register in the in-memory map so we track it.
 					const scopedDir = this.scopedDir(cardId);
 					const worktreePath = this.worktreeDir(cardId);
 					if (!this.lifecycleWorkspaces.has(cardId)) {
@@ -212,7 +212,7 @@ export class WorkspaceManager {
 						try {
 							const meta = JSON.parse(fs.readFileSync(join(scopedDir, "workspace.json"), "utf8"));
 							if (typeof meta?.baseCommit === "string" && meta.baseCommit) baseCommit = meta.baseCommit;
-						} catch { /* best-effort — fall back to HEAD */ }
+						} catch { /* best-effort - fall back to HEAD */ }
 						this.lifecycleWorkspaces.set(cardId, {
 							cardId,
 							workspaceId: ws.workspace_id,
@@ -225,7 +225,7 @@ export class WorkspaceManager {
 					}
 					continue;
 				}
-				// Orphan — close workspace + force-remove worktree + prune.
+				// Orphan - close workspace + force-remove worktree + prune.
 				await this.d.herdr!.workspaceClose(ws.workspace_id);
 				const worktreePath = this.worktreeDir(cardId);
 				try { gitWorktreeRemove(cwd, worktreePath); } catch { /* best-effort */ }
@@ -239,7 +239,7 @@ export class WorkspaceManager {
 				this.log("WS_ORPHAN_REAPED", { card: cardId, workspace: ws.workspace_id });
 			}
 		} catch {
-			/* best-effort — herdr may be unavailable at startup */
+			/* best-effort - herdr may be unavailable at startup */
 		}
 		// Sweep for stale worktrees on disk that have no herdr workspace record.
 		// Force-remove any <scopedBase>/<id>/worktree where the card is NOT in the
@@ -279,7 +279,7 @@ export class WorkspaceManager {
 	}
 
 	/** Close all lifecycle workspaces on session_shutdown. Does NOT prune scoped
-	 *  dirs — cards at Draft→Needs Review survive to the next session; terminal
+	 *  dirs - cards at Draft→Needs Review survive to the next session; terminal
 	 *  cards will be cleaned up by the reconstitution sweep. */
 	async shutdown(): Promise<void> {
 		for (const [id, ws] of [...this.lifecycleWorkspaces.entries()]) {
@@ -310,7 +310,7 @@ export class WorkspaceManager {
 		//    repo. The worktree goes inside the scoped dir.
 		//
 		//    Idempotent resume: after an owner restart, boot-replay re-fires card:intake
-		//    for cards still in lifecycle — their worktree survives on disk and is still
+		//    for cards still in lifecycle - their worktree survives on disk and is still
 		//    registered with git, so a blind `worktree add` collides ("already exists").
 		//    If a readable workspace.json is present, REUSE the worktree (recover its
 		//    creation base; the stale herdr ids are replaced in steps 3–4). A worktree
@@ -326,7 +326,7 @@ export class WorkspaceManager {
 					resumedWorktree = true;
 					this.log("WS_RESUMED", { card: id, worktree: worktreePath, baseCommit });
 				}
-			} catch { /* unreadable meta — treat as remnant below */ }
+			} catch { /* unreadable meta - treat as remnant below */ }
 			if (!resumedWorktree) {
 				try { gitWorktreeRemove(cwd, worktreePath); } catch { /* not registered */ }
 				try { fs.rmSync(worktreePath, { recursive: true, force: true }); } catch { /* best-effort */ }
@@ -344,13 +344,13 @@ export class WorkspaceManager {
 
 		// 2b. Symlink node_modules into the worktree. The worktree is a bare git checkout:
 		//     node_modules is gitignored, so it is ABSENT. Without it the worker's
-		//     `-e .pi/extensions/*.ts` cannot resolve their deps (e.g. `yaml`) — the worker
-		//     exits before reading task.md — and any verify command the worker runs fails
+		//     `-e .pi/extensions/*.ts` cannot resolve their deps (e.g. `yaml`) - the worker
+		//     exits before reading task.md - and any verify command the worker runs fails
 		//     too. The deps live in the main checkout; symlink them so the worktree resolves
 		//     exactly like main. node_modules is gitignored → the symlink never appears in
 		//     the diff. Both locations are guarded by existsSync, so a repo without either
 		//     dir is untouched:
-		//       • <main>/.pi/node_modules (the Pi-extension layout — harmless when absent)
+		//       • <main>/.pi/node_modules (the Pi-extension layout - harmless when absent)
 		//       • <main>/node_modules     (any Node repo's top-level deps)
 		try {
 			const srcNm = join(cwd, ".pi", "node_modules");
@@ -372,7 +372,7 @@ export class WorkspaceManager {
 		}
 
 		// 3. Create the herdr workspace with --cwd = the worktree (NOT the shared repo)
-		//    — Pi-adapter surface only; worktree-only mode (no herdr dep) skips it.
+		//    - Pi-adapter surface only; worktree-only mode (no herdr dep) skips it.
 		let workspaceId: string | null = null;
 		let paneId: string | null = null;
 		if (this.d.herdr) {
@@ -419,7 +419,7 @@ export class WorkspaceManager {
 
 		this.log("WS_CREATED", { card: id, workspace: workspaceId, worktree: worktreePath });
 
-		// 6. Emit workspace:ready — the auto-planner gates on this.
+		// 6. Emit workspace:ready - the auto-planner gates on this.
 		this.d.host.events.emit("workspace:ready", { id, file, workspaceId, paneId, scopedDir, worktreePath });
 	}
 
@@ -434,7 +434,7 @@ export class WorkspaceManager {
 			if (this.lifecycleWorkspaces.has(next.id)) continue; // already created
 			this.log("WS_QUEUE_DRAIN", { card: next.id });
 			// Fire-and-forget: the auto-planner will trigger on workspace:ready.
-			// Use the cwd captured at intake time — NOT process.cwd() (port deviation).
+			// Use the cwd captured at intake time - NOT process.cwd() (port deviation).
 			void this.createWorkspace(next.id, next.file, next.cwd);
 			return;
 		}

@@ -1,24 +1,24 @@
-// pi.ts — the Pi harness adapter: the worker-pool's Pi worker mechanics carved out
+// pi.ts - the Pi harness adapter: the worker-pool's Pi worker mechanics carved out
 // behind the five-verb Harness contract (spawn / inject / poll / collect / dispose).
 //
 // What moved here from src/engine/worker-pool.ts (the engine keeps everything
-// harness-neutral — slots, breaker, budget kill, watchdog, diff harvest, board
+// harness-neutral - slots, breaker, budget kill, watchdog, diff harvest, board
 // writes; this adapter owns TRANSPORT only):
 //   • task.md construction (buildWorkerTask) with the CARDID-placeholder sentinel
-//     discipline — the concrete `<<CARD-DONE:<id>>>>` string must never appear in
+//     discipline - the concrete `<<CARD-DONE:<id>>>>` string must never appear in
 //     task.md or the steer, or the pane echo would false-match completion.
 //   • the launch command (execution-only `pi --no-extensions -e pi-guard …` with the
 //     obs env + HOLDCO_POLICY wiring), shell-quoted end to end.
 //   • ready-wait (paneAgentStatus idle, SOFT timeout), steer baseline capture, and
-//     the submit+verify loop (Enter can be DROPPED if pi's input line isn't ready —
+//     the submit+verify loop (Enter can be DROPPED if pi's input line isn't ready -
 //     resend until the worker demonstrably leaves idle; bounded poll COUNTS, not a
 //     wall-clock verify, so a frozen test clock terminates).
 //   • sentinel polling by STABLE pane label (pane ids RENUMBER when a sibling
-//     closes — herdr fact) with the leave-idle guard, and the obs telemetry harvest.
+//     closes - herdr fact) with the leave-idle guard, and the obs telemetry harvest.
 //
 // poll() NEVER throws (contract rule 1): the whole body is fenced, and the
 // pane-gone verdict distinguishes a NON-EMPTY pane list missing our label
-// ("failed" — genuine omission) from an EMPTY list ("unknown" — the herdr adapter
+// ("failed" - genuine omission) from an EMPTY list ("unknown" - the herdr adapter
 // returns [] on a transport timeout too, which must not read as death).
 
 import * as fs from "node:fs";
@@ -39,7 +39,7 @@ import type {
 } from "./types.ts";
 
 /** Regex matching ONLY a worker's own concrete completion sentinel (never the
- *  placeholder echo). The ONE definition repo-wide — it moved here when the
+ *  placeholder echo). The ONE definition repo-wide - it moved here when the
  *  engine's worker pool went harness-neutral (sentinels are a Pi-pane transport
  *  detail, not an engine concept). */
 export function sentinelFor(cardId: string): RegExp {
@@ -56,15 +56,15 @@ const READY_POLL_MS = 1_000;
 const STEER_SUBMIT_DELAY_MS = 300;
 /** The kickoff Enter can be DROPPED if pi's input line isn't ready (the 300ms race)
  *  → the steer sits typed-but-unsubmitted. After each Enter, VERIFY the worker left
- *  idle; if not, resend — bounded attempts, SOFT on exhaustion (sentinel + engine
+ *  idle; if not, resend - bounded attempts, SOFT on exhaustion (sentinel + engine
  *  watchdog backstop a truly-stuck worker). */
 const STEER_SUBMIT_MAX_ATTEMPTS = 4;
-/** Verify polls per attempt — a BOUNDED count, NOT a wall-clock deadline (a frozen
+/** Verify polls per attempt - a BOUNDED count, NOT a wall-clock deadline (a frozen
  *  test clock would never advance past a `while (now() < deadline)` verify). */
 const STEER_VERIFY_POLLS = 5;
 const STEER_VERIFY_POLL_MS = 200;
 
-/** A worker's stable pane label (renumber-safe addressing — see cockpit.ts). */
+/** A worker's stable pane label (renumber-safe addressing - see cockpit.ts). */
 export function piWorkerLabel(cardId: string): string {
 	return `worker:${cardId}`;
 }
@@ -72,7 +72,7 @@ export function piWorkerLabel(cardId: string): string {
 /** The adapter's private session state (the engine treats it as an opaque token). */
 export interface PiHarnessSession extends HarnessSession {
 	paneLabel: string;
-	/** Last-known pane id — a CACHE only; every use re-resolves by paneLabel first. */
+	/** Last-known pane id - a CACHE only; every use re-resolves by paneLabel first. */
 	paneId: string | null;
 	/** obs runtime session id, resolved lazily via the `run:<runId>` tag. */
 	sessionId: string | null;
@@ -175,7 +175,7 @@ export class PiHarness implements Harness {
 			throw new Error(`herdr pane run failed (worker did not launch) for ${ws.cardId}`);
 		}
 
-		// 4. Ready-wait, then steer. Re-resolve the pane by its STABLE label first —
+		// 4. Ready-wait, then steer. Re-resolve the pane by its STABLE label first -
 		//    a sibling teardown during waitForReady renumbers pane ids (herdr fact).
 		await this.waitForReady(session);
 		const live = (await this.cockpit.resolve(paneLabel)) ?? pane;
@@ -192,12 +192,12 @@ export class PiHarness implements Harness {
 		const s = session as PiHarnessSession;
 		try {
 			const pane = await this.cockpit.resolve(s.paneLabel);
-			if (!pane) return false; // pane gone — cannot deliver
+			if (!pane) return false; // pane gone - cannot deliver
 			s.paneId = pane;
 			const sent = await this.herdr.paneSendText(pane, message);
 			if (!sent) return false;
 			// Same submit+verify as the kickoff steer; SOFT on unconfirmed submission
-			// (delivery happened — the sentinel/watchdog backstop a stuck worker).
+			// (delivery happened - the sentinel/watchdog backstop a stuck worker).
 			await this.submitAndVerify(pane);
 			return true;
 		} catch {
@@ -205,7 +205,7 @@ export class PiHarness implements Harness {
 		}
 	}
 
-	// ── poll (NEVER throws — contract rule 1) ──────────────────────────────────
+	// ── poll (NEVER throws - contract rule 1) ──────────────────────────────────
 	async poll(session: HarnessSession): Promise<PollResult> {
 		const s = session as PiHarnessSession;
 		try {
@@ -252,8 +252,8 @@ export class PiHarness implements Harness {
 	async collect(session: HarnessSession): Promise<HarnessArtifacts> {
 		const s = session as PiHarnessSession;
 
-		// Usage rollup from obs. getStats exposes only total_tokens — there is no
-		// input/output split in the stats route — so the WHOLE total is reported as
+		// Usage rollup from obs. getStats exposes only total_tokens - there is no
+		// input/output split in the stats route - so the WHOLE total is reported as
 		// tokensOut with tokensIn 0 (a documented convention, not a claim that input
 		// was free; the engine sums tokensIn+tokensOut for its rollup either way).
 		let usage: HarnessUsage | null = null;
@@ -272,7 +272,7 @@ export class PiHarness implements Harness {
 		}
 
 		// Output: prefer the completion snapshot poll() stored; else a fresh pane read
-		// (the mid-run/escalation path — best-effort, the pane may already be gone).
+		// (the mid-run/escalation path - best-effort, the pane may already be gone).
 		let text = s.lastKnownOutput;
 		if (!text) {
 			try {
@@ -312,7 +312,7 @@ export class PiHarness implements Harness {
 			/* best-effort */
 		}
 		try {
-			// Snapshot the pane output if collect() hasn't already persisted one —
+			// Snapshot the pane output if collect() hasn't already persisted one -
 			// evidence must survive teardown (conformance: transcript-survives-dispose).
 			const pane = await this.cockpit.resolve(s.paneLabel);
 			if (pane) {
@@ -323,7 +323,7 @@ export class PiHarness implements Harness {
 				}
 			}
 		} catch {
-			/* best-effort — pane may already be gone */
+			/* best-effort - pane may already be gone */
 		}
 		try {
 			await this.cockpit.close(s.paneLabel); // idempotent: a missing label no-ops
@@ -335,7 +335,7 @@ export class PiHarness implements Harness {
 	// ── carved mechanics ───────────────────────────────────────────────────────
 
 	/** Poll the worker pane until its agent_status reports idle (herdr-injected pi
-	 *  state). SOFT timeout: proceed to steer anyway — the worker is most likely up
+	 *  state). SOFT timeout: proceed to steer anyway - the worker is most likely up
 	 *  but not reporting; the sentinel + engine watchdog backstop a dead one. */
 	private async waitForReady(s: PiHarnessSession): Promise<void> {
 		const deadline = this.now() + READY_TIMEOUT_MS;
@@ -347,9 +347,9 @@ export class PiHarness implements Harness {
 
 	/** Press Enter to submit the typed text, then VERIFY the worker actually left
 	 *  idle (pi is running it). A dropped Enter strands the worker with the steer
-	 *  typed-but-unsubmitted — resend up to STEER_SUBMIT_MAX_ATTEMPTS times.
+	 *  typed-but-unsubmitted - resend up to STEER_SUBMIT_MAX_ATTEMPTS times.
 	 *  Returns true when the worker demonstrably left idle; false = unconfirmed
-	 *  (SOFT — the caller proceeds and the sentinel/watchdog backstop). */
+	 *  (SOFT - the caller proceeds and the sentinel/watchdog backstop). */
 	private async submitAndVerify(paneId: string): Promise<boolean> {
 		for (let attempt = 1; attempt <= STEER_SUBMIT_MAX_ATTEMPTS; attempt++) {
 			await this.sleep(STEER_SUBMIT_DELAY_MS);
@@ -384,7 +384,7 @@ export class PiHarness implements Harness {
 // ── prompt construction (module-level, pure) ──────────────────────────────────
 
 /** The short kickoff steer typed into the worker REPL (points at task.md). MUST
- *  never contain the concrete sentinel — only task.md's placeholder form exists
+ *  never contain the concrete sentinel - only task.md's placeholder form exists
  *  outside the worker's own final message. */
 function buildSteer(scopedDir: string): string {
 	return `Read and execute the task in ${join(scopedDir, "task.md")} now, end to end. Follow its completion contract exactly.`;
@@ -393,26 +393,26 @@ function buildSteer(scopedDir: string): string {
 /**
  * The worker's task.md (read by the worker, NOT echoed as a chat input). The
  * completion sentinel is described with a PLACEHOLDER (`CARDID`) the worker must
- * substitute with the real id — so neither the steer nor a `read` of this file
+ * substitute with the real id - so neither the steer nor a `read` of this file
  * ever emits the *concrete* sentinel poll() matches (defeats the echo false
  * positive; the leave-idle guard backs it).
  *
  * The worker's cwd is a per-card git worktree; both code and artifact cards edit
- * files INSIDE it — the engine's unified git-diff harvest is the output channel.
+ * files INSIDE it - the engine's unified git-diff harvest is the output channel.
  */
 function buildWorkerTask(req: SpawnRequest): string {
 	const { instruction } = req;
 	const { id, domain, cardType } = req.card;
 	const domainCtx = `domains/${domain}/CONTEXT.md`;
-	// Single-source constraints (knowledge layer), rendered as task context —
+	// Single-source constraints (knowledge layer), rendered as task context -
 	// Pi's native injection surface. Placed ahead of the instruction so they
 	// read as ground rules, not afterthoughts.
 	const constraintsBlock = req.constraints ? `## Constraints (holdco knowledge layer)\n${req.constraints}\n\n` : "";
 	const safetyRules =
 		`CRITICAL SAFETY RULES:\n` +
-		`- NEVER run git commit / git push / git commit --amend / git merge. Leave your edits UNCOMMITTED in the working tree — the owner captures your diff and applies it after approval. (push/commit/merge are also hard-blocked by the policy guard.)\n` +
+		`- NEVER run git commit / git push / git commit --amend / git merge. Leave your edits UNCOMMITTED in the working tree - the owner captures your diff and applies it after approval. (push/commit/merge are also hard-blocked by the policy guard.)\n` +
 		`- NEVER edit anything outside this worktree (BLOCKED by the policy guard).\n` +
-		`- NEVER write the card's frontmatter or status — the owner owns that.\n\n`;
+		`- NEVER write the card's frontmatter or status - the owner owns that.\n\n`;
 	const completionContract = (outcomeHint: string, closing: string): string =>
 		`## Completion contract (follow EXACTLY)\n` +
 		`End your FINAL assistant message with these two lines:\n` +
@@ -425,9 +425,9 @@ function buildWorkerTask(req: SpawnRequest): string {
 	const isCodeCard = cardType === "ops" || cardType === "maintenance";
 	if (isCodeCard) {
 		return (
-			`# Worker task — card \`${id}\` (domain: ${domain}, type: CODE)\n\n` +
+			`# Worker task - card \`${id}\` (domain: ${domain}, type: CODE)\n\n` +
 			`You are an execution-only worker running inside a PER-CARD GIT WORKTREE.\n` +
-			`Your cwd IS the worktree root — a clean checkout of the main repo at HEAD.\n` +
+			`Your cwd IS the worktree root - a clean checkout of the main repo at HEAD.\n` +
 			`Your edits inside this worktree will produce a git diff that IS your output.\n\n` +
 			safetyRules +
 			constraintsBlock +
@@ -437,32 +437,32 @@ function buildWorkerTask(req: SpawnRequest): string {
 			`- Read \`knowledge/FILING.md\` for filing conventions (the owner uses it; you will NOT write an artifact).\n\n` +
 			`## Do the work\n` +
 			`- Apply the edits to the named files INSIDE this worktree. Run the verify command(s).\n` +
-			`- Make substantive changes — whitespace-only or idempotent edits may produce an empty diff.\n` +
-			`- Your diff is the build-review artifact — the owner applies it after human approval.\n\n` +
-			completionContract("<files changed + verify result>", "Do NOT change the card's status — the owner moves it to Needs Review.")
+			`- Make substantive changes - whitespace-only or idempotent edits may produce an empty diff.\n` +
+			`- Your diff is the build-review artifact - the owner applies it after human approval.\n\n` +
+			completionContract("<files changed + verify result>", "Do NOT change the card's status - the owner moves it to Needs Review.")
 		);
 	}
 	// ARTIFACT contract (default for research, content, strategy, or unknown card_type):
 	return (
-		`# Worker task — card \`${id}\` (domain: ${domain})\n\n` +
+		`# Worker task - card \`${id}\` (domain: ${domain})\n\n` +
 		`You are an execution-only worker running inside a PER-CARD GIT WORKTREE.\n` +
-		`Your cwd IS the worktree root — a clean checkout of the main repo at HEAD.\n` +
+		`Your cwd IS the worktree root - a clean checkout of the main repo at HEAD.\n` +
 		`Write your durable artifact(s) to the REAL knowledge paths INSIDE this worktree\n` +
 		`(e.g. \`domains/${domain}/refs/my-analysis.md\` for domain artifacts,\n` +
 		`or \`knowledge/decisions/my-decision.md\` for cross-domain artifacts).\n` +
-		`Your edits to these paths will produce a git diff that IS your output —\n` +
+		`Your edits to these paths will produce a git diff that IS your output -\n` +
 		`the owner applies the diff after human approval.\n\n` +
 		safetyRules +
 		`## Instruction\n${instruction}\n\n` +
 		`## Load context first (read-only)\n` +
 		`- Read \`${domainCtx}\` and the refs/ it points to, as the task needs.\n` +
-		`- Read \`knowledge/FILING.md\` — your artifact MUST carry the frontmatter + kebab-case filename it describes.\n\n` +
+		`- Read \`knowledge/FILING.md\` - your artifact MUST carry the frontmatter + kebab-case filename it describes.\n\n` +
 		`## Do the work\n` +
 		`- Execute the instruction and write the resulting durable artifact(s) to their knowledge paths inside this worktree (e.g. \`domains/${domain}/refs/<kebab>.md\`). Use the write or edit tool with absolute paths.\n` +
 		`- Produce real artifacts with the FILING.md frontmatter; do not merely describe what you would do.\n\n` +
 		completionContract(
 			"<one-line summary of what you produced and where you wrote it>",
-			"Do NOT change the card's status — the owner moves it to Needs Review and files your artifact.",
+			"Do NOT change the card's status - the owner moves it to Needs Review and files your artifact.",
 		)
 	);
 }

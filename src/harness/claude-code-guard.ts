@@ -1,4 +1,4 @@
-// claude-code-guard.ts — the Claude Code PreToolUse hook entrypoint that
+// claude-code-guard.ts - the Claude Code PreToolUse hook entrypoint that
 // enforces the holdco SafetyPolicy NATIVELY inside a Claude Code worker.
 //
 // Claude Code executes this file as `node <path-to-this-file>` (configured by
@@ -64,7 +64,7 @@ export function runGuard(input: string, env: Record<string, string | undefined>)
 	try {
 		payload = JSON.parse(input) as Record<string, unknown>;
 	} catch {
-		return ALLOW; // unparseable payload: cannot even tell the tool — allow
+		return ALLOW; // unparseable payload: cannot even tell the tool - allow
 	}
 	if (payload === null || typeof payload !== "object") return ALLOW;
 
@@ -106,7 +106,7 @@ async function main(): Promise<void> {
 		result = runGuard(input, process.env);
 	} catch {
 		// runGuard handles every expected failure itself; a truly unexpected
-		// throw must not surface as a hook error exit code — allow.
+		// throw must not surface as a hook error exit code - allow.
 		result = ALLOW;
 	}
 	if (result.stderr) process.stderr.write(result.stderr + "\n");

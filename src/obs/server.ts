@@ -1,14 +1,14 @@
-// server.ts — the observability server: Node port of the source system's Bun
+// server.ts - the observability server: Node port of the source system's Bun
 // server (Bun.serve + bun:sqlite → node:http + node:sqlite).
 //
 // Same architecture, reshaped for the StageEvent contract:
-//   • auth wall — Bearer token or ?token= on EVERY route except /health.
+//   • auth wall - Bearer token or ?token= on EVERY route except /health.
 //   • ingest → persist → SSE broadcast: POST /stage-events validates each event
 //     against schema/stage-event.schema.json (the strict wire contract), inserts
 //     dedupe-aware, and pushes each NEW event to matching SSE subscribers.
-//   • rollups — GET /runs replaces the legacy per-session rollup with per-run
+//   • rollups - GET /runs replaces the legacy per-session rollup with per-run
 //     aggregates (cost/token sums, first/last ts, last status).
-// The source's public/ UI is deliberately NOT ported — the deck consumes
+// The source's public/ UI is deliberately NOT ported - the deck consumes
 // /stage-events + /stage-events/stream directly.
 //
 // Run directly (`node src/obs/server.ts`) for a standalone boot, or via
@@ -138,7 +138,7 @@ export async function startObsServer(opts: ObsServerOpts = {}): Promise<ObsServe
 		const pathname = url.pathname;
 		const method = (req.method ?? "GET").toUpperCase();
 
-		// OPTIONS — CORS preflight
+		// OPTIONS - CORS preflight
 		if (method === "OPTIONS") {
 			res.writeHead(204, {
 				...CORS,
@@ -163,7 +163,7 @@ export async function startObsServer(opts: ObsServerOpts = {}): Promise<ObsServe
 		// ── auth wall for everything else ─────────────────────────────────
 		if (!checkAuth(req, url)) return json(res, { error: "unauthorized" }, 401);
 
-		// ── POST /stage-events — validate → insert (dedupe) → broadcast ───
+		// ── POST /stage-events - validate → insert (dedupe) → broadcast ───
 		if (pathname === "/stage-events" && method === "POST") {
 			let bodyText: string;
 			try {
@@ -197,7 +197,7 @@ export async function startObsServer(opts: ObsServerOpts = {}): Promise<ObsServe
 			return json(res, errors ? { ingested, rejected, errors } : { ingested, rejected });
 		}
 
-		// ── GET /stage-events?run_id=&card_id=&limit= — ascending seq ─────
+		// ── GET /stage-events?run_id=&card_id=&limit= - ascending seq ─────
 		if (pathname === "/stage-events" && method === "GET") {
 			const limit = parseInt(url.searchParams.get("limit") ?? "500", 10) || 500;
 			const events = db.list({
@@ -208,13 +208,13 @@ export async function startObsServer(opts: ObsServerOpts = {}): Promise<ObsServe
 			return json(res, { events });
 		}
 
-		// ── GET /runs — per-run rollups, most recent first ─────────────────
+		// ── GET /runs - per-run rollups, most recent first ─────────────────
 		if (pathname === "/runs" && method === "GET") {
 			const limit = parseInt(url.searchParams.get("limit") ?? "50", 10) || 50;
 			return json(res, { runs: db.runs(limit) });
 		}
 
-		// ── GET /stage-events/stream — SSE ─────────────────────────────────
+		// ── GET /stage-events/stream - SSE ─────────────────────────────────
 		if (pathname === "/stage-events/stream" && method === "GET") {
 			res.writeHead(200, {
 				"content-type": "text/event-stream",
@@ -232,7 +232,7 @@ export async function startObsServer(opts: ObsServerOpts = {}): Promise<ObsServe
 			const hello = JSON.stringify({ server: "holdco-obs", version: VERSION });
 			res.write(`retry: 5000\nevent: hello\ndata: ${hello}\n\n`);
 			res.on("close", () => subscribers.delete(id)); // clean unsubscribe
-			return; // held open — no res.end()
+			return; // held open - no res.end()
 		}
 
 		return json(res, { error: "not found" }, 404);
